@@ -20,6 +20,6 @@ DerivedData/
 *.a
 *.o
 
-# Prepared locally by Scripts/prepare-mame-apple2-core.sh; too large to commit.
+# Prepared locally by Scripts/prepare-mame-computers-core.sh; too large to commit.
 deps/mame/
-mameapple2e_headless.dylib
+mamecomputers_headless.dylib

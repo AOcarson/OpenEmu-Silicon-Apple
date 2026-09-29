@@ -1,0 +1,10 @@
+{
+	"plugin": {
+		"name": "c64_openemu",
+		"description": "OpenEmu glue for the Commodore 64: joystick port routing and autostart",
+		"version": "1.0.0-mame0250",
+		"author": "OpenEmu MAMEComputers core",
+		"type": "plugin",
+		"start": "false"
+	}
+}

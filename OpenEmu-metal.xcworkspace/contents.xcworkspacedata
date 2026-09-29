@@ -98,6 +98,6 @@
       location = "group:MAME/MAME.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:MAMEApple2/MAMEApple2.xcodeproj">
+      location = "group:MAMEComputers/MAMEComputers.xcodeproj">
    </FileRef>
 </Workspace>

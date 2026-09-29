@@ -27,15 +27,18 @@
 #import <Cocoa/Cocoa.h>
 #import <OpenEmuBase/OEGameCore.h>
 #import "OEApple2SystemResponderClient.h"
+#import "OEC64SystemResponderClient.h"
 #import "osd.h"
 
-/*! Apple IIe core built on the OpenEmu-Silicon headless MAME 0.250 library.
+/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
  *
- *  Boots MAME's apple2ee driver (or apple2e, per game) with the launched disk
- *  image in drive 1, and exposes per-game settings — joystick on/off, arrow
- *  keys as joystick, machine model, drive 2 contents and arbitrary MAME
- *  options — through OpenEmu's in-game Display Mode menu. */
+ *  One MAME build with the Apple //e and Commodore 64 drivers serves both the
+ *  Apple IIe and Commodore 64 systems. Per system, the core picks the MAME
+ *  machine, maps the Mac keyboard onto the emulated one, routes the launched
+ *  file to the right MAME device, and offers per-game settings (joystick,
+ *  machine model, disk drives, arbitrary MAME options and Lua plugins)
+ *  through OpenEmu's in-game Display Mode menu. */
 OE_EXPORTED_CLASS
-@interface MAMEApple2GameCore : OEGameCore<OSDDelegate>
+@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
 
 @end

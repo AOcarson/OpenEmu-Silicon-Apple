@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D00A06891763763000C99008"
-               BuildableName = "MAMEApple2.oecoreplugin"
-               BlueprintName = "MAMEApple2"
-               ReferencedContainer = "container:MAMEApple2.xcodeproj">
+               BuildableName = "MAMEComputers.oecoreplugin"
+               BlueprintName = "MAMEComputers"
+               ReferencedContainer = "container:MAMEComputers.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>

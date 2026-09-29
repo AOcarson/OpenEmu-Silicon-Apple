@@ -1,8 +1,8 @@
 diff --git a/src/frontend/mame/ui/mainmenu.cpp b/src/frontend/mame/ui/mainmenu.cpp
-index db1eab2c..05f5f302 100644
+index db1eab2c..790a1cb3 100644
 --- a/src/frontend/mame/ui/mainmenu.cpp
 +++ b/src/frontend/mame/ui/mainmenu.cpp
-@@ -114,15 +114,40 @@ void menu_main::populate(float &customtop, float &custombottom)
+@@ -114,15 +114,43 @@ void menu_main::populate(float &customtop, float &custombottom)
  
  	if (machine().options().headless())
  	{
@@ -30,6 +30,9 @@ index db1eab2c..05f5f302 100644
 +		}
  
 -		item_append(_("Machine Information"), "", 0, (void *)GAME_INFO);
++		if (cassette_device_enumerator(machine().root_device()).first() != nullptr)
++			item_append(_("menu-main", "Tape Control"), 0, (void *)TAPE_CONTROL);
++
 +		if (ui().machine_info().has_bioses())
 +			item_append(_("menu-main", "BIOS Selection"), 0, (void *)BIOS_SELECTION);
 +

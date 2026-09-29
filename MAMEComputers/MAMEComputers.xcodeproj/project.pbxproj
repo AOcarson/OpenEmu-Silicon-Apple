@@ -7,25 +7,25 @@
 	objects = {
 
 /* Begin PBXAggregateTarget section */
-		D0AADE271763813100759E26 /* Build & Install MAMEApple2 */ = {
+		D0AADE271763813100759E26 /* Build & Install MAMEComputers */ = {
 			isa = PBXAggregateTarget;
-			buildConfigurationList = D0AADE281763813100759E26 /* Build configuration list for PBXAggregateTarget "Build & Install MAMEApple2" */;
+			buildConfigurationList = D0AADE281763813100759E26 /* Build configuration list for PBXAggregateTarget "Build & Install MAMEComputers" */;
 			buildPhases = (
 				D0AADE2D1763815000759E26 /* ShellScript */,
 			);
 			dependencies = (
 				D0AADE2C1763813900759E26 /* PBXTargetDependency */,
 			);
-			name = "Build & Install MAMEApple2";
-			productName = "Build & Install MAMEApple2";
+			name = "Build & Install MAMEComputers";
+			productName = "Build & Install MAMEComputers";
 		};
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		0510AA1E2300825E002028C1 /* mameapple2e_headless.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 0510AA1D2300825D002028C1 /* mameapple2e_headless.dylib */; };
-		0510AA1F23008294002028C1 /* mameapple2e_headless.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 0510AA1D2300825D002028C1 /* mameapple2e_headless.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		0510AA1E2300825E002028C1 /* mamecomputers_headless.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */; };
+		0510AA1F23008294002028C1 /* mamecomputers_headless.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D00A068E1763763000C99008 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D00A068D1763763000C99008 /* Cocoa.framework */; };
-		D00A06A617637E9100C99008 /* MAMEApple2GameCore.m in Sources */ = {isa = PBXBuildFile; fileRef = D00A06A517637E9100C99008 /* MAMEApple2GameCore.m */; };
+		D00A06A617637E9100C99008 /* MAMEComputersGameCore.m in Sources */ = {isa = PBXBuildFile; fileRef = D00A06A517637E9100C99008 /* MAMEComputersGameCore.m */; };
 		D0AADE31176382F900759E26 /* OpenEmuBase.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D0AADE30176382F900759E26 /* OpenEmuBase.framework */; };
 /* End PBXBuildFile section */
 
@@ -35,7 +35,7 @@
 			containerPortal = D00A06821763762F00C99008 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = D00A06891763763000C99008;
-			remoteInfo = MAMEApple2;
+			remoteInfo = MAMEComputers;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -46,7 +46,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				0510AA1F23008294002028C1 /* mameapple2e_headless.dylib in Embed Libraries */,
+				0510AA1F23008294002028C1 /* mamecomputers_headless.dylib in Embed Libraries */,
 			);
 			name = "Embed Libraries";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -60,18 +60,18 @@
 		050B7E8B23775A04000ECB19 /* headless.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = headless.h; path = deps/mame/src/osd/headless/public/headless.h; sourceTree = "<group>"; };
 		0510AA1B230081F3002028C1 /* inputenum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = inputenum.h; path = deps/mame/src/osd/headless/public/inputenum.h; sourceTree = "<group>"; };
 		0510AA1C230081F3002028C1 /* osd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osd.h; path = deps/mame/src/osd/headless/public/osd.h; sourceTree = "<group>"; };
-		0510AA1D2300825D002028C1 /* mameapple2e_headless.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = mameapple2e_headless.dylib; path = deps/mame/mameapple2e_headless.dylib; sourceTree = "<group>"; };
+		0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = mamecomputers_headless.dylib; path = deps/mame/mamecomputers_headless.dylib; sourceTree = "<group>"; };
 		05334A951C52AEEF0066D493 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
 		05334A981C52AF0E0066D493 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		8C3132F7177F667D0002D0B9 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
-		D00A068A1763763000C99008 /* MAMEApple2.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MAMEApple2.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		D00A068A1763763000C99008 /* MAMEComputers.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MAMEComputers.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		D00A068D1763763000C99008 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D00A06921763763000C99008 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D00A069F17637AB600C99008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = SOURCE_ROOT; };
-		D00A06A417637E9100C99008 /* MAMEApple2GameCore.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAMEApple2GameCore.h; sourceTree = "<group>"; };
-		D00A06A517637E9100C99008 /* MAMEApple2GameCore.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MAMEApple2GameCore.m; sourceTree = "<group>"; };
+		D00A06A417637E9100C99008 /* MAMEComputersGameCore.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAMEComputersGameCore.h; sourceTree = "<group>"; };
+		D00A06A517637E9100C99008 /* MAMEComputersGameCore.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MAMEComputersGameCore.m; sourceTree = "<group>"; };
 		D00A06A717637EB500C99008 /* OEApple2SystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OEApple2SystemResponderClient.h; path = "../OpenEmu/SystemPlugins/Apple IIe/OEApple2SystemResponderClient.h"; sourceTree = "<group>"; };
-		D0AADE2F176381FB00759E26 /* MAMEApple2_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAMEApple2_Prefix.pch; sourceTree = "<group>"; };
+		D0AADE2F176381FB00759E26 /* MAMEComputers_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAMEComputers_Prefix.pch; sourceTree = "<group>"; };
 		D0AADE30176382F900759E26 /* OpenEmuBase.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = OpenEmuBase.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0AADE331763838A00759E26 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		D0AADE341763838A00759E26 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
@@ -82,7 +82,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0510AA1E2300825E002028C1 /* mameapple2e_headless.dylib in Frameworks */,
+				0510AA1E2300825E002028C1 /* mamecomputers_headless.dylib in Frameworks */,
 				D00A068E1763763000C99008 /* Cocoa.framework in Frameworks */,
 				D0AADE31176382F900759E26 /* OpenEmuBase.framework in Frameworks */,
 			);
@@ -105,7 +105,7 @@
 		D00A068B1763763000C99008 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D00A068A1763763000C99008 /* MAMEApple2.oecoreplugin */,
+				D00A068A1763763000C99008 /* MAMEComputers.oecoreplugin */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,7 +113,7 @@
 		D00A068C1763763000C99008 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				0510AA1D2300825D002028C1 /* mameapple2e_headless.dylib */,
+				0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */,
 				D0AADE30176382F900759E26 /* OpenEmuBase.framework */,
 				D00A068F1763763000C99008 /* Linked Frameworks */,
 				D0AADE321763833600759E26 /* Other Frameworks */,
@@ -144,8 +144,8 @@
 			isa = PBXGroup;
 			children = (
 				D00A06A717637EB500C99008 /* OEApple2SystemResponderClient.h */,
-				D00A06A417637E9100C99008 /* MAMEApple2GameCore.h */,
-				D00A06A517637E9100C99008 /* MAMEApple2GameCore.m */,
+				D00A06A417637E9100C99008 /* MAMEComputersGameCore.h */,
+				D00A06A517637E9100C99008 /* MAMEComputersGameCore.m */,
 				D0BA5A9517645D630033A910 /* osd */,
 			);
 			name = Classes;
@@ -154,7 +154,7 @@
 		D0AADE2E176381E900759E26 /* Other Sources */ = {
 			isa = PBXGroup;
 			children = (
-				D0AADE2F176381FB00759E26 /* MAMEApple2_Prefix.pch */,
+				D0AADE2F176381FB00759E26 /* MAMEComputers_Prefix.pch */,
 			);
 			name = "Other Sources";
 			sourceTree = "<group>";
@@ -185,9 +185,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		D00A06891763763000C99008 /* MAMEApple2 */ = {
+		D00A06891763763000C99008 /* MAMEComputers */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D00A069C1763763000C99008 /* Build configuration list for PBXNativeTarget "MAMEApple2" */;
+			buildConfigurationList = D00A069C1763763000C99008 /* Build configuration list for PBXNativeTarget "MAMEComputers" */;
 			buildPhases = (
 				D00A06861763763000C99008 /* Sources */,
 				D00A06871763763000C99008 /* Frameworks */,
@@ -199,9 +199,9 @@
 			);
 			dependencies = (
 			);
-			name = MAMEApple2;
-			productName = MAMEApple2;
-			productReference = D00A068A1763763000C99008 /* MAMEApple2.oecoreplugin */;
+			name = MAMEComputers;
+			productName = MAMEComputers;
+			productReference = D00A068A1763763000C99008 /* MAMEComputers.oecoreplugin */;
 			productType = "com.apple.product-type.bundle";
 		};
 /* End PBXNativeTarget section */
@@ -214,7 +214,7 @@
 				LastUpgradeCheck = 1330;
 				ORGANIZATIONNAME = OpenEmu;
 			};
-			buildConfigurationList = D00A06851763762F00C99008 /* Build configuration list for PBXProject "MAMEApple2" */;
+			buildConfigurationList = D00A06851763762F00C99008 /* Build configuration list for PBXProject "MAMEComputers" */;
 			compatibilityVersion = "Xcode 10.0";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
@@ -227,8 +227,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				D00A06891763763000C99008 /* MAMEApple2 */,
-				D0AADE271763813100759E26 /* Build & Install MAMEApple2 */,
+				D00A06891763763000C99008 /* MAMEComputers */,
+				D0AADE271763813100759E26 /* Build & Install MAMEComputers */,
 			);
 		};
 /* End PBXProject section */
@@ -259,7 +259,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "install_name_tool -change mameapple2e_headless.dylib @rpath/mameapple2e_headless.dylib \"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\n";
+			shellScript = "install_name_tool -change mamecomputers_headless.dylib @rpath/mamecomputers_headless.dylib \"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\n";
 		};
 		D0AADE2D1763815000759E26 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -281,7 +281,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D00A06A617637E9100C99008 /* MAMEApple2GameCore.m in Sources */,
+				D00A06A617637E9100C99008 /* MAMEComputersGameCore.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -290,7 +290,7 @@
 /* Begin PBXTargetDependency section */
 		D0AADE2C1763813900759E26 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = D00A06891763763000C99008 /* MAMEApple2 */;
+			target = D00A06891763763000C99008 /* MAMEComputers */;
 			targetProxy = D0AADE2B1763813900759E26 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -412,13 +412,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.1;
+				CURRENT_PROJECT_VERSION = 0.250.2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIe\"",
+					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 64\"",
 					"$(SRCROOT)/deps/mame/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;
@@ -439,13 +440,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.1;
+				CURRENT_PROJECT_VERSION = 0.250.2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIe\"",
+					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 64\"",
 					"$(SRCROOT)/deps/mame/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;
@@ -480,7 +482,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D00A06851763762F00C99008 /* Build configuration list for PBXProject "MAMEApple2" */ = {
+		D00A06851763762F00C99008 /* Build configuration list for PBXProject "MAMEComputers" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D00A069A1763763000C99008 /* Debug */,
@@ -489,7 +491,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D00A069C1763763000C99008 /* Build configuration list for PBXNativeTarget "MAMEApple2" */ = {
+		D00A069C1763763000C99008 /* Build configuration list for PBXNativeTarget "MAMEComputers" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D00A069D1763763000C99008 /* Debug */,
@@ -498,7 +500,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D0AADE281763813100759E26 /* Build configuration list for PBXAggregateTarget "Build & Install MAMEApple2" */ = {
+		D0AADE281763813100759E26 /* Build configuration list for PBXAggregateTarget "Build & Install MAMEComputers" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D0AADE291763813100759E26 /* Debug */,
