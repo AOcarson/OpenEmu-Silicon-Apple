@@ -50,7 +50,12 @@ static NSString *const Apple2SettingJoystick     = @"JoystickConnected";        
 static NSString *const Apple2SettingArrowKeys    = @"ArrowKeysControlJoystick";   // BOOL, default NO
 static NSString *const Apple2SettingMachine      = @"Machine";                    // MAME driver, default apple2ee
 static NSString *const Apple2SettingMAMEOptions  = @"MAMEOptions";                // { option: value }, applied at boot
-static NSString *const Apple2SettingMAMEPlugins  = @"MAMEPlugins";                // [ plugin folder name, ... ]
+static NSString *const Apple2SettingMAMEPlugins  = @"MAMEPlugins";                // [ plugin folder name, ... ], added to the defaults
+static NSString *const Apple2SettingDisabledPlugins = @"DisabledMAMEPlugins";     // [ plugin folder name, ... ], removed from the defaults
+
+// Plugins every game gets unless its settings disable them. Overridden by a
+// MAMEPlugins array in <core support folder>/Global Settings.plist.
+static NSString *const Apple2JoystickFixPlugin = @"apple2_joystick_fix";
 
 // Display-mode preference keys (identify menu entries; never saved by OpenEmu).
 static NSString *const Apple2ModeJoystick  = @"apple2.joystick";
@@ -58,6 +63,7 @@ static NSString *const Apple2ModeArrowKeys = @"apple2.arrowkeys";
 static NSString *const Apple2ModeMachine   = @"apple2.machine";
 static NSString *const Apple2ModeDrive1    = @"apple2.drive1";
 static NSString *const Apple2ModeDrive2    = @"apple2.drive2";
+static NSString *const Apple2ModeJoystickFix = @"apple2.joystickfix";
 
 enum { Apple2MaxPlayers = 2 };
 enum { Apple2Drive2Empty = -1 };
@@ -433,10 +439,9 @@ static os_log_t OE_CORE_LOG;
 
     // Lua plugins. MAME starts them once, with the first machine of this game
     // session, so changes to the list apply the next time the game is opened.
-    NSString *pluginsDir = [self.supportDirectoryPath stringByAppendingPathComponent:@"plugins"];
     [opts setValue:self.supportDirectoryPath forOptionNamed:@"homepath" error:NULL];
     [opts setValue:@"1" forOptionNamed:@"plugins" error:NULL];
-    [opts setValue:[self pluginListInDirectory:pluginsDir] forOptionNamed:@"plugin" error:NULL];
+    [opts setValue:self.pluginOptionValue forOptionNamed:@"plugin" error:NULL];
 
     if (![opts setValue:(self.joystickConnected ? Apple2GameIOJoystick : @"") forOptionNamed:Apple2OptionGameIO error:&optionError])
     {
@@ -517,52 +522,111 @@ static os_log_t OE_CORE_LOG;
     return YES;
 }
 
-/*! The game's MAMEPlugins setting as MAME's comma-separated "plugin" option,
- *  keeping only plugins that are actually installed (an unknown name would
- *  otherwise stop MAME from starting any plugin). */
-- (NSString *)pluginListInDirectory:(NSString *)pluginsDir
+static NSArray<NSString *> *Apple2NameList(id value)
 {
-    id requested = _settings[Apple2SettingMAMEPlugins];
-    NSArray *names = nil;
-    if ([requested isKindOfClass:[NSArray class]])
+    NSArray *items = nil;
+    if ([value isKindOfClass:[NSArray class]])
     {
-        names = requested;
+        items = value;
     }
-    else if ([requested isKindOfClass:[NSString class]])
+    else if ([value isKindOfClass:[NSString class]])
     {
-        names = [requested componentsSeparatedByString:@","];
+        items = [value componentsSeparatedByString:@","];
     }
 
-    NSMutableArray<NSString *> *valid = [NSMutableArray array];
-    NSFileManager *fm = [NSFileManager defaultManager];
-    for (id item in names)
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (id item in items)
     {
         if (![item isKindOfClass:[NSString class]])
         {
             continue;
         }
         NSString *name = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (name.length == 0)
+        if (name.length > 0)
         {
-            continue;
+            [names addObject:name];
         }
-        NSString *manifest = [[pluginsDir stringByAppendingPathComponent:name] stringByAppendingPathComponent:@"plugin.json"];
-        if ([fm fileExistsAtPath:manifest])
+    }
+    return names;
+}
+
+- (NSString *)pluginsDirectory
+{
+    return [self.supportDirectoryPath stringByAppendingPathComponent:@"plugins"];
+}
+
+- (BOOL)pluginIsInstalled:(NSString *)name
+{
+    NSString *manifest = [[self.pluginsDirectory stringByAppendingPathComponent:name] stringByAppendingPathComponent:@"plugin.json"];
+    return [[NSFileManager defaultManager] fileExistsAtPath:manifest];
+}
+
+/*! Plugins for every game: Global Settings.plist's MAMEPlugins, or the
+ *  joystick fix when that file doesn't say. */
+- (NSArray<NSString *> *)defaultPlugins
+{
+    NSString *path = [self.supportDirectoryPath stringByAppendingPathComponent:@"Global Settings.plist"];
+    NSDictionary *global = [NSDictionary dictionaryWithContentsOfFile:path];
+    id list = global[Apple2SettingMAMEPlugins];
+    return list ? Apple2NameList(list) : @[ Apple2JoystickFixPlugin ];
+}
+
+/*! Defaults, plus the game's MAMEPlugins, minus its DisabledMAMEPlugins. */
+- (NSArray<NSString *> *)requestedPlugins
+{
+    NSMutableOrderedSet<NSString *> *names = [NSMutableOrderedSet orderedSetWithArray:self.defaultPlugins];
+    [names addObjectsFromArray:Apple2NameList(_settings[Apple2SettingMAMEPlugins])];
+    [names removeObjectsInArray:Apple2NameList(_settings[Apple2SettingDisabledPlugins])];
+    return names.array;
+}
+
+/*! requestedPlugins as MAME's comma-separated "plugin" option, keeping only
+ *  plugins that are installed (an unknown name would otherwise stop MAME
+ *  from starting any plugin). */
+- (NSString *)pluginOptionValue
+{
+    NSMutableArray<NSString *> *valid = [NSMutableArray array];
+    for (NSString *name in self.requestedPlugins)
+    {
+        if ([self pluginIsInstalled:name])
         {
             [valid addObject:name];
         }
         else
         {
-            os_log_error(OE_CORE_LOG, "MAME plugin \"%{public}@\" not found (expected %{public}@)", name, manifest);
+            os_log_error(OE_CORE_LOG, "MAME plugin \"%{public}@\" is not installed in %{public}@", name, self.pluginsDirectory);
         }
     }
 
-    if (valid.count > 0 && ![fm fileExistsAtPath:[pluginsDir stringByAppendingPathComponent:@"boot.lua"]])
+    NSString *boot = [self.pluginsDirectory stringByAppendingPathComponent:@"boot.lua"];
+    if (valid.count > 0 && ![[NSFileManager defaultManager] fileExistsAtPath:boot])
     {
-        os_log_error(OE_CORE_LOG, "MAME plugins need boot.lua in %{public}@; run Scripts/build-mame-apple2-core.sh to install it", pluginsDir);
+        os_log_error(OE_CORE_LOG, "MAME plugins need boot.lua in %{public}@; run Scripts/build-mame-apple2-core.sh to install it", self.pluginsDirectory);
     }
 
+    os_log_info(OE_CORE_LOG, "MAME plugins: %{public}@", valid.count ? [valid componentsJoinedByString:@", "] : @"none");
     return [valid componentsJoinedByString:@","];
+}
+
+/*! Turns a plugin on or off for this game only. */
+- (void)setPlugin:(NSString *)name enabledForGame:(BOOL)enabled
+{
+    NSMutableArray<NSString *> *added = [Apple2NameList(_settings[Apple2SettingMAMEPlugins]) mutableCopy];
+    NSMutableArray<NSString *> *disabled = [Apple2NameList(_settings[Apple2SettingDisabledPlugins]) mutableCopy];
+
+    [added removeObject:name];
+    [disabled removeObject:name];
+    if (enabled && ![self.defaultPlugins containsObject:name])
+    {
+        [added addObject:name];
+    }
+    else if (!enabled && [self.defaultPlugins containsObject:name])
+    {
+        [disabled addObject:name];
+    }
+
+    _settings[Apple2SettingMAMEPlugins] = added;
+    [self setSetting:disabled forKey:Apple2SettingDisabledPlugins];
 }
 
 - (NSError *)errorForAudit:(AuditResult *)audit
@@ -710,6 +774,11 @@ static NSDictionary *Apple2Group(NSString *name, NSArray *items)
 
     [modes addObject:Apple2Toggle(@"Joystick Connected (restarts)", Apple2ModeJoystick, self.joystickConnected)];
     [modes addObject:Apple2Toggle(@"Arrow Keys Control Joystick", Apple2ModeArrowKeys, self.arrowKeysAreJoystick)];
+    if ([self pluginIsInstalled:Apple2JoystickFixPlugin])
+    {
+        BOOL fixOn = [self.requestedPlugins containsObject:Apple2JoystickFixPlugin];
+        [modes addObject:Apple2Toggle(@"Joystick Timing Fix (next launch)", Apple2ModeJoystickFix, fixOn)];
+    }
 
     NSString *machine = self.machine;
     NSArray *machines = @[
@@ -777,6 +846,12 @@ static NSDictionary *Apple2Group(NSString *name, NSArray *items)
     {
         [self setSetting:@(!state) forKey:Apple2SettingJoystick];
         [self restartMachine];
+    }
+    else if ([key isEqualToString:Apple2ModeJoystickFix])
+    {
+        // MAME starts plugins once per session, so this applies the next time
+        // the game is opened.
+        [self setPlugin:Apple2JoystickFixPlugin enabledForGame:!state];
     }
     else if ([key isEqualToString:Apple2ModeArrowKeys])
     {

@@ -119,28 +119,40 @@ after the menu settings, so they win.
 
 ### MAME Lua plugins
 
-Put a plugin folder (with its `plugin.json` and `init.lua`) in
-`~/Library/Application Support/OpenEmu/MAMEApple2/plugins/`, next to MAME's
-own plugins, and list it in the game's settings file:
+Plugins live in `~/Library/Application Support/OpenEmu/MAMEApple2/plugins/`
+(one folder per plugin, with its `plugin.json` and `init.lua`). The build
+script installs MAME 0.250's own plugins there, plus the ones kept in this
+repo's `MAMEApple2/plugins/`.
+
+**Joystick timing fix.** `apple2_joystick_fix` is on for every game by
+default. When the joystick is pushed fully right or down (value 255), it
+stretches the paddle timer to 287, as AppleWin and KEGS do, so games whose
+timing loops never see 255 in MAME (Boulder Dash, for one) register full
+deflection. If it upsets a game, turn **Joystick Timing Fix** off for that
+game in the Display Mode menu; it takes effect the next time the game is
+opened.
+
+**Choosing plugins.** Every game gets the default list, which is the joystick
+fix unless `Global Settings.plist` in the core's support folder has its own
+`MAMEPlugins` array (an empty array turns plugins off everywhere). A game's
+settings file can then add and remove plugins:
 
 ```xml
-<key>MAMEPlugins</key>
+<key>MAMEPlugins</key>          <!-- added for this game -->
 <array>
-    <string>myfix</string>   <!-- the plugin's folder name -->
+    <string>myplugin</string>   <!-- the plugin's folder name -->
+</array>
+<key>DisabledMAMEPlugins</key>  <!-- removed for this game -->
+<array>
+    <string>apple2_joystick_fix</string>
 </array>
 ```
 
-Plugins kept in `MAMEApple2/plugins/` in this repo are installed there by
-the build script too — currently `boulderdash_joystick_fix`, which extends the
-joystick's maximum paddle timing (255 → 287, like AppleWin and KEGS) so
-Boulder Dash can move right and down. It only activates when a Boulder Dash
-disk is mounted.
-
 Plugins start when the game is opened, so changes apply the next time you
-open it. A plugin name that isn't installed is skipped (and logged) rather
-than stopping the game. Note these run on MAME 0.250's Lua API: a plugin
-written for a much newer MAME may need small changes (for example
-`emu.register_frame_done` instead of `emu.add_machine_frame_notifier`).
+open it. A plugin that isn't installed is skipped (and logged) rather than
+stopping the game. These run on MAME 0.250's Lua API: a plugin written for a
+much newer MAME may need small changes (for example `emu.register_frame`
+instead of `emu.add_machine_frame_notifier`).
 
 ### Multi-disk games
 

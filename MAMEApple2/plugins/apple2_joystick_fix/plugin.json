@@ -1,0 +1,10 @@
+{
+	"plugin": {
+		"name": "apple2_joystick_fix",
+		"description": "Apple II joystick maximum-deflection timing fix (255 -> 287, as in AppleWin/KEGS)",
+		"version": "2.0.0-mame0250",
+		"author": "Community compatibility shim",
+		"type": "plugin",
+		"start": "false"
+	}
+}
