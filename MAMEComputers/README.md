@@ -26,9 +26,14 @@ The app itself must also be built from this checkout, since the Apple IIe
 system plugin ships inside OpenEmu.app:
 
 ```sh
-xcodebuild -workspace OpenEmu-metal.xcworkspace -scheme OpenEmu \
-  -configuration Release -destination 'platform=macOS,arch=arm64' build
+./Scripts/build-for-worktree.sh --release
 ```
+
+That builds to `~/Builds/openemu/<branch>/Build/Products/Release/OpenEmu.app`
+(the same place every time) and, if Xcode has an Apple Development
+certificate (a free Apple ID in Xcode › Settings › Accounts › Manage
+Certificates › +), signs with it, so macOS keeps the Input Monitoring
+permission across rebuilds. Quit OpenEmu before opening a new build.
 
 Both systems must be switched on in Settings › Library › Available Libraries.
 

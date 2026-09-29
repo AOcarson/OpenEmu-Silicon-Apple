@@ -10,6 +10,13 @@
 # Usage:
 #   ./Scripts/build-for-worktree.sh                  # builds the OpenEmu scheme
 #   ./Scripts/build-for-worktree.sh "OpenEmu + FCEU" # builds a specific scheme
+#   ./Scripts/build-for-worktree.sh --release        # Release configuration
+#
+# Signing: if an "Apple Development" certificate is in your keychain (add a
+# free Apple ID in Xcode > Settings > Accounts > Manage Certificates), the
+# build is signed with it. macOS then recognises each new build as the same
+# app, so Input Monitoring stays granted across rebuilds. Without one the
+# build is ad-hoc signed, and macOS asks again after every build.
 #
 # After building once, grant Input Monitoring (and any other permissions you
 # need) to the printed app path in System Settings → Privacy & Security.
@@ -25,7 +32,15 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$REPO_ROOT"
 
 WORKSPACE="OpenEmu-metal.xcworkspace"
-SCHEME="${1:-OpenEmu}"
+CONFIG="Debug"
+SCHEME="OpenEmu"
+for arg in "$@"; do
+  case "$arg" in
+    --release) CONFIG="Release" ;;
+    --debug)   CONFIG="Debug" ;;
+    *)         SCHEME="$arg" ;;
+  esac
+done
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's|/|-|g')
 if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
@@ -36,26 +51,39 @@ fi
 BUILD_DIR="$HOME/Builds/openemu/$BRANCH"
 mkdir -p "$BUILD_DIR"
 
-echo "Building scheme '$SCHEME' for branch '$BRANCH'"
-echo "Output: $BUILD_DIR/Build/Products/Debug/"
+# Resolve a stable Apple Development signing identity if available, and sign
+# with it during the build (so every target keeps its own entitlements).
+# Falls back to ad-hoc (-) if no such certificate is in the keychain.
+SIGN_ID=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $2; exit}')
+SIGN_ARGS=()
+if [ -n "$SIGN_ID" ]; then
+  TEAM_ID=$(security find-certificate -c "$SIGN_ID" -p 2>/dev/null \
+    | openssl x509 -noout -subject 2>/dev/null \
+    | sed -n 's/.*OU *= *\([A-Z0-9]\{10\}\).*/\1/p')
+  SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_ID" CODE_SIGN_STYLE=Manual)
+  if [ -n "$TEAM_ID" ]; then
+    SIGN_ARGS+=(DEVELOPMENT_TEAM="$TEAM_ID")
+  fi
+else
+  SIGN_ID="-"
+fi
+
+echo "Building scheme '$SCHEME' ($CONFIG) for branch '$BRANCH'"
+echo "Output: $BUILD_DIR/Build/Products/$CONFIG/"
+echo "Signing: $SIGN_ID"
 echo ""
 
 xcodebuild \
   -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
-  -configuration Debug \
+  -configuration "$CONFIG" \
   -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath "$BUILD_DIR" \
+  ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} \
   build
 
-# Auto-resolve a stable Apple Development signing identity if available.
-# Falls back to ad-hoc (-) if no Developer cert is in the keychain.
-SIGN_ID=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $2; exit}')
-SIGN_ID="${SIGN_ID:--}"
-
-APP_PATH="$BUILD_DIR/Build/Products/Debug/OpenEmu.app"
+APP_PATH="$BUILD_DIR/Build/Products/$CONFIG/OpenEmu.app"
 if [ -d "$APP_PATH" ]; then
-  codesign --force --deep --sign "$SIGN_ID" "$APP_PATH" 2>/dev/null || true
   echo ""
   echo "===================="
   echo "Build complete."
@@ -70,6 +98,6 @@ if [ -d "$APP_PATH" ]; then
   echo "===================="
 else
   echo "warning: expected app at $APP_PATH but it doesn't exist" >&2
-  echo "(scheme '$SCHEME' may not produce OpenEmu.app — check the Build/Products/Debug dir)" >&2
-  ls "$BUILD_DIR/Build/Products/Debug/" 2>/dev/null || true
+  echo "(scheme '$SCHEME' may not produce OpenEmu.app — check the Build/Products/$CONFIG dir)" >&2
+  ls "$BUILD_DIR/Build/Products/$CONFIG/" 2>/dev/null || true
 fi
