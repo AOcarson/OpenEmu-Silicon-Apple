@@ -11,8 +11,8 @@
 --    so a change in OpenEmu's menu (or its "Swap Joysticks" button) applies
 --    at once.
 --
--- 2. Autostart. When the machine reaches the READY. prompt it types what a
---    C64 owner would:
+-- 2. Autostart. When the machine reaches the READY. prompt it types (through
+--    the KERNAL keyboard buffer) what a C64 owner would:
 --      disk:      LOAD"*",8,1  then RUN once it has loaded
 --      program:   RUN          (MAME has already put .prg/.t64 in memory)
 --      tape:      LOAD         with PLAY pressed, then RUN
@@ -185,20 +185,52 @@ local function start_autostart(machine)
     emu.print_info("c64_openemu: autostart " .. mode)
 end
 
+-- Typing goes straight into the KERNAL's keyboard buffer, as VICE's
+-- autostart does, rather than through MAME's natural keyboard: pressing keys
+-- through the emulated keyboard matrix can drop or garble characters (the
+-- matrix is shared with the joystick ports).
+local KEYBUF = 0x0277      -- KERNAL keyboard buffer
+local KEYBUF_COUNT = 0x00c6
+local KEYBUF_SIZE = 10
+
 local function type_text(text)
-    manager.machine.natkeyboard:post(text)
+    auto.pending = (auto.pending or "") .. text
+end
+
+-- Feeds pending text into the keyboard buffer as it empties. Returns true
+-- while there is still text waiting to be typed.
+local function feed_keyboard(space)
+    local pending = auto.pending
+    if not pending or pending == "" then
+        return false
+    end
+    if space:read_u8(KEYBUF_COUNT) ~= 0 then
+        return true
+    end
+    local chunk = pending:sub(1, KEYBUF_SIZE)
+    for i = 1, #chunk do
+        -- Upper case ASCII, digits and punctuation are the same in PETSCII;
+        -- "\r" is RETURN.
+        space:write_u8(KEYBUF + i - 1, chunk:byte(i))
+    end
+    space:write_u8(KEYBUF_COUNT, #chunk)
+    auto.pending = pending:sub(KEYBUF_SIZE + 1)
+    return true
 end
 
 local function step_autostart(machine)
     if not auto or frame % SCAN_EVERY ~= 0 then
         return
     end
-    local natkbd = machine.natkeyboard
-    if natkbd.is_posting then
-        return
-    end
     local space = main_space(machine)
     if not space then
+        auto = nil
+        return
+    end
+    if feed_keyboard(space) then
+        return
+    end
+    if auto.step == "done" then
         auto = nil
         return
     end
@@ -215,7 +247,7 @@ local function step_autostart(machine)
                 return
             end
             type_text("RUN\r")
-            auto = nil
+            auto.step = "done"
         elseif auto.mode == "disk" then
             type_text('LOAD"*",8,1\r')
             auto.step, auto.row = "loading", last
@@ -231,9 +263,10 @@ local function step_autostart(machine)
         -- without the program starting itself.
         if last and last > auto.row then
             type_text("RUN\r")
-            auto = nil
+            auto.step = "done"
         end
     end
+    feed_keyboard(space)
 end
 
 -------------------------------------------------------------------------------
