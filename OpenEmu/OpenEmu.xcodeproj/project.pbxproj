@@ -38,6 +38,7 @@
 			dependencies = (
 				87F077B023B68C64001FFC9B /* PBXTargetDependency */,
 				87FBC0C21BFC7A0000AECF5A /* PBXTargetDependency */,
+				6CB6C9621AF1F2B410C3C628 /* PBXTargetDependency */,
 				873A363E1FE233BA0004D81D /* PBXTargetDependency */,
 				87BD9E231C2A6652006722DF /* PBXTargetDependency */,
 				87BD9E211C2A663B006722DF /* PBXTargetDependency */,
@@ -222,6 +223,7 @@
 		55BE97F62543333400E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE97F52543333400E3841E /* Images.xcassets */; };
 		55BE98A02543337600E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE989F2543337600E3841E /* Images.xcassets */; };
 		55BE9912254333A700E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE9911254333A700E3841E /* Images.xcassets */; };
+		DB93E2419FFBF75183FADB53 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D0EB77628C59DF7D04297D21 /* Images.xcassets */; };
 		55BE99BC254333FC00E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE99BB254333FC00E3841E /* Images.xcassets */; };
 		55BE9A2E2543344300E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE9A2D2543344300E3841E /* Images.xcassets */; };
 		55BE9B1025439A1E00E3841E /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 55BE9B0F25439A1E00E3841E /* Images.xcassets */; };
@@ -354,16 +356,23 @@
 		87FB253B1BBC572E00E739CE /* Controller-Preferences-JAP.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FB25391BBC572E00E739CE /* Controller-Preferences-JAP.plist */; };
 		87FB253C1BBC572E00E739CE /* Controller-Preferences-NA.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FB253A1BBC572E00E739CE /* Controller-Preferences-NA.plist */; };
 		87FBC0771BFC764F00AECF5A /* OEC64SystemResponder.m in Sources */ = {isa = PBXBuildFile; fileRef = 87FBC0751BFC764F00AECF5A /* OEC64SystemResponder.m */; };
+		414EC771FC2A1C9B9CF06189 /* OEApple2SystemResponder.m in Sources */ = {isa = PBXBuildFile; fileRef = FD3582CAA27F3219E758D938 /* OEApple2SystemResponder.m */; };
+		818F9B2B140526C977CF41F9 /* OEApple2SystemController.m in Sources */ = {isa = PBXBuildFile; fileRef = CF227E9376EE4EFF0CB48F5E /* OEApple2SystemController.m */; };
 		87FBC0811BFC76A000AECF5A /* Controller-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC07B1BFC76A000AECF5A /* Controller-Mappings.plist */; };
+		01F7AAF7377BB99C4A44FEB4 /* Controller-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4F02334F0D80D4DAB0C2A0D7 /* Controller-Mappings.plist */; };
 		87FBC0821BFC76A000AECF5A /* Controller-Preferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC07C1BFC76A000AECF5A /* Controller-Preferences.plist */; };
+		77BAF3106488A638F35AAD20 /* Controller-Preferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = A89A2F77117F46ECEBB89450 /* Controller-Preferences.plist */; };
 		87FBC0831BFC76A000AECF5A /* Keyboard-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC07D1BFC76A000AECF5A /* Keyboard-Mappings.plist */; };
+		D3010BE035EF34A055C6712E /* Keyboard-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 05FBE01EBD4085C2E15F4A7A /* Keyboard-Mappings.plist */; };
 		87FBC0851BFC76E200AECF5A /* OpenEmuSystem.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6D120C417112E1300E868A8 /* OpenEmuSystem.framework */; };
+		E40B44E25D6B17EAC15C7199 /* OpenEmuSystem.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6D120C417112E1300E868A8 /* OpenEmuSystem.framework */; };
 		87FBC0951C07929D00AECF5A /* OpenEmuSystem.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6D120C417112E1300E868A8 /* OpenEmuSystem.framework */; };
 		87FBC09A1C0796B800AECF5A /* OEA8SystemResponder.m in Sources */ = {isa = PBXBuildFile; fileRef = 87FBC0981C0796B800AECF5A /* OEA8SystemResponder.m */; };
 		87FBC0A21C07985900AECF5A /* Keyboard-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC0A11C07985900AECF5A /* Keyboard-Mappings.plist */; };
 		87FBC0A41C0798C000AECF5A /* Controller-Preferences.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC0A31C0798C000AECF5A /* Controller-Preferences.plist */; };
 		87FBC0A61C07996B00AECF5A /* Controller-Mappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 87FBC0A51C07996B00AECF5A /* Controller-Mappings.plist */; };
 		87FBC0C01BFC7A0000AECF5A /* Commodore 64.oesystemplugin in Copy System Plugins to App Plugins */ = {isa = PBXBuildFile; fileRef = 87FBC06D1BFC70FE00AECF5A /* Commodore 64.oesystemplugin */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		7D2DBEA7A42426716C55BFDD /* Apple IIe.oesystemplugin in Copy System Plugins to App Plugins */ = {isa = PBXBuildFile; fileRef = F0771BB16724AC7AD0CFA768 /* Apple IIe.oesystemplugin */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8CBD3AA217D23AA80022399B /* OEGridGameCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 8CBD3AA117D23AA80022399B /* OEGridGameCell.m */; };
 		8F057160254E7EA5003B36FD /* MainMenu.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8F057162254E7EA5003B36FD /* MainMenu.strings */; };
 		8F071F391C25534E007B76DA /* Preferences.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8F071F381C25534E007B76DA /* Preferences.xib */; };
@@ -921,6 +930,13 @@
 			remoteGlobalIDString = 87FBC06C1BFC70FE00AECF5A;
 			remoteInfo = "Commodore 64";
 		};
+		3BBCB57B913F0F5B68CBAAA3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A37F4A9FDCFA73011CA2CEA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 21173B8A79550C59E56DDD45;
+			remoteInfo = "Apple IIe";
+		};
 		8F94DEC4250EC701003A1F33 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2A37F4A9FDCFA73011CA2CEA /* Project object */;
@@ -1058,6 +1074,7 @@
 			files = (
 				87F077B423B68D02001FFC9B /* GameCube.oesystemplugin in Copy System Plugins to App Plugins */,
 				87FBC0C01BFC7A0000AECF5A /* Commodore 64.oesystemplugin in Copy System Plugins to App Plugins */,
+				7D2DBEA7A42426716C55BFDD /* Apple IIe.oesystemplugin in Copy System Plugins to App Plugins */,
 				0E026D7220704B74B7A5E66C /* Wii.oesystemplugin in Copy System Plugins to App Plugins */,
 				873A36421FE233E00004D81D /* Saturn.oesystemplugin in Copy System Plugins to App Plugins */,
 				DEAAB8E598494A97A260F43C84A6B563 /* Dreamcast.oesystemplugin in Copy System Plugins to App Plugins */,
@@ -1292,6 +1309,7 @@
 		55BE97F52543333400E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		55BE989F2543337600E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		55BE9911254333A700E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
+		D0EB77628C59DF7D04297D21 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		55BE99BB254333FC00E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		55BE9A2D2543344300E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		55BE9B0F25439A1E00E3841E /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
@@ -1483,13 +1501,23 @@
 		87FB25391BBC572E00E739CE /* Controller-Preferences-JAP.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Preferences-JAP.plist"; sourceTree = "<group>"; };
 		87FB253A1BBC572E00E739CE /* Controller-Preferences-NA.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Preferences-NA.plist"; sourceTree = "<group>"; };
 		87FBC06D1BFC70FE00AECF5A /* Commodore 64.oesystemplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Commodore 64.oesystemplugin"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0771BB16724AC7AD0CFA768 /* Apple IIe.oesystemplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Apple IIe.oesystemplugin"; sourceTree = BUILT_PRODUCTS_DIR; };
 		87FBC06F1BFC70FE00AECF5A /* Commodore 64-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Commodore 64-Info.plist"; sourceTree = "<group>"; };
+		6BC2AD73CD0D12E08AB1CD12 /* Apple IIe-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Apple IIe-Info.plist"; sourceTree = "<group>"; };
 		87FBC0741BFC764F00AECF5A /* OEC64SystemResponder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEC64SystemResponder.h; sourceTree = "<group>"; };
+		FFDF97E47E97B6651208EC64 /* OEApple2SystemResponder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEApple2SystemResponder.h; sourceTree = "<group>"; };
 		87FBC0751BFC764F00AECF5A /* OEC64SystemResponder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OEC64SystemResponder.m; sourceTree = "<group>"; };
+		FD3582CAA27F3219E758D938 /* OEApple2SystemResponder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OEApple2SystemResponder.m; sourceTree = "<group>"; };
+		6E285237D21E98D665AE8E81 /* OEApple2SystemController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEApple2SystemController.h; sourceTree = "<group>"; };
+		CF227E9376EE4EFF0CB48F5E /* OEApple2SystemController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OEApple2SystemController.m; sourceTree = "<group>"; };
 		87FBC0761BFC764F00AECF5A /* OEC64SystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEC64SystemResponderClient.h; sourceTree = "<group>"; };
+		1ED75850622CAB07144C714E /* OEApple2SystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEApple2SystemResponderClient.h; sourceTree = "<group>"; };
 		87FBC07B1BFC76A000AECF5A /* Controller-Mappings.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Mappings.plist"; sourceTree = "<group>"; };
+		4F02334F0D80D4DAB0C2A0D7 /* Controller-Mappings.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Mappings.plist"; sourceTree = "<group>"; };
 		87FBC07C1BFC76A000AECF5A /* Controller-Preferences.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Preferences.plist"; sourceTree = "<group>"; };
+		A89A2F77117F46ECEBB89450 /* Controller-Preferences.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Controller-Preferences.plist"; sourceTree = "<group>"; };
 		87FBC07D1BFC76A000AECF5A /* Keyboard-Mappings.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Keyboard-Mappings.plist"; sourceTree = "<group>"; };
+		05FBE01EBD4085C2E15F4A7A /* Keyboard-Mappings.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Keyboard-Mappings.plist"; sourceTree = "<group>"; };
 		87FBC08E1C0790B400AECF5A /* Atari 8bit.oesystemplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Atari 8bit.oesystemplugin"; sourceTree = BUILT_PRODUCTS_DIR; };
 		87FBC0901C0790B500AECF5A /* Atari 8bit-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Atari 8bit-Info.plist"; sourceTree = "<group>"; };
 		87FBC0971C0796B700AECF5A /* OEA8SystemResponder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEA8SystemResponder.h; sourceTree = "<group>"; };
@@ -2069,6 +2097,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				87FBC0851BFC76E200AECF5A /* OpenEmuSystem.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F8BA181367DBB41B32B6977 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E40B44E25D6B17EAC15C7199 /* OpenEmuSystem.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2655,6 +2691,7 @@
 				87DF04FE1BCE2D100060E2C2 /* Dreamcast.oesystemplugin */,
 				3DB744BA1BD8BA9E00C23E74 /* PlayStation 2.oesystemplugin */,
 				87FBC06D1BFC70FE00AECF5A /* Commodore 64.oesystemplugin */,
+				F0771BB16724AC7AD0CFA768 /* Apple IIe.oesystemplugin */,
 				87FBC08E1C0790B400AECF5A /* Atari 8bit.oesystemplugin */,
 				016F22DC23F19F5F00181842 /* OEAlertTest.app */,
 				0547FE1424E86D9F005C1FFC /* broker.xpc */,
@@ -3329,6 +3366,19 @@
 			path = "Commodore 64";
 			sourceTree = "<group>";
 		};
+		9C9659C10E509FDDD74DF124 /* Apple IIe */ = {
+			isa = PBXGroup;
+			children = (
+				6E285237D21E98D665AE8E81 /* OEApple2SystemController.h */,
+				CF227E9376EE4EFF0CB48F5E /* OEApple2SystemController.m */,
+				FFDF97E47E97B6651208EC64 /* OEApple2SystemResponder.h */,
+				FD3582CAA27F3219E758D938 /* OEApple2SystemResponder.m */,
+				1ED75850622CAB07144C714E /* OEApple2SystemResponderClient.h */,
+				9881D38F6837DB15E8C341E7 /* Supporting Files */,
+			);
+			path = "Apple IIe";
+			sourceTree = "<group>";
+		};
 		87FBC0731BFC762200AECF5A /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
@@ -3337,6 +3387,18 @@
 				87FBC07D1BFC76A000AECF5A /* Keyboard-Mappings.plist */,
 				87FBC07B1BFC76A000AECF5A /* Controller-Mappings.plist */,
 				87FBC07C1BFC76A000AECF5A /* Controller-Preferences.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		9881D38F6837DB15E8C341E7 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				D0EB77628C59DF7D04297D21 /* Images.xcassets */,
+				6BC2AD73CD0D12E08AB1CD12 /* Apple IIe-Info.plist */,
+				05FBE01EBD4085C2E15F4A7A /* Keyboard-Mappings.plist */,
+				4F02334F0D80D4DAB0C2A0D7 /* Controller-Mappings.plist */,
+				A89A2F77117F46ECEBB89450 /* Controller-Preferences.plist */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -4202,6 +4264,7 @@
 				87FBC08F1C0790B500AECF5A /* Atari 8-bit */,
 				94BE9E52171683E000AB08E6 /* ColecoVision */,
 				87FBC06E1BFC70FE00AECF5A /* Commodore 64 */,
+				9C9659C10E509FDDD74DF124 /* Apple IIe */,
 				87DF04C71BCE26FB0060E2C2 /* Dreamcast */,
 				C6B947B11364ECA700A425F0 /* GameBoy */,
 				C646574A13771F12002A4F70 /* GameBoy Advance */,
@@ -4624,6 +4687,23 @@
 			name = "Commodore 64";
 			productName = "Commodore 64";
 			productReference = 87FBC06D1BFC70FE00AECF5A /* Commodore 64.oesystemplugin */;
+			productType = "com.apple.product-type.bundle";
+		};
+		21173B8A79550C59E56DDD45 /* Apple IIe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2CA71C08F116FE7FE19B8830 /* Build configuration list for PBXNativeTarget "Apple IIe" */;
+			buildPhases = (
+				D8DA1CD409A984C4541B4AE6 /* Sources */,
+				4F8BA181367DBB41B32B6977 /* Frameworks */,
+				C2F09536D43AA96C016AADCA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Apple IIe";
+			productName = "Apple IIe";
+			productReference = F0771BB16724AC7AD0CFA768 /* Apple IIe.oesystemplugin */;
 			productType = "com.apple.product-type.bundle";
 		};
 		87FBC08D1C0790B400AECF5A /* Atari 8bit */ = {
@@ -5385,6 +5465,7 @@
 				87FBC08D1C0790B400AECF5A /* Atari 8bit */,
 				94BE9E4F171683E000AB08E6 /* ColecoVision */,
 				87FBC06C1BFC70FE00AECF5A /* Commodore 64 */,
+				21173B8A79550C59E56DDD45 /* Apple IIe */,
 				87DF04FD1BCE2D100060E2C2 /* Dreamcast */,
 				C6B947AE1364ECA600A425F0 /* GameBoy */,
 				C646574713771F12002A4F70 /* GameBoy Advance */,
@@ -5559,6 +5640,17 @@
 				87FBC0821BFC76A000AECF5A /* Controller-Preferences.plist in Resources */,
 				87FBC0831BFC76A000AECF5A /* Keyboard-Mappings.plist in Resources */,
 				87FBC0811BFC76A000AECF5A /* Controller-Mappings.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2F09536D43AA96C016AADCA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DB93E2419FFBF75183FADB53 /* Images.xcassets in Resources */,
+				77BAF3106488A638F35AAD20 /* Controller-Preferences.plist in Resources */,
+				D3010BE035EF34A055C6712E /* Keyboard-Mappings.plist in Resources */,
+				01F7AAF7377BB99C4A44FEB4 /* Controller-Mappings.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -6219,6 +6311,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				87FBC0771BFC764F00AECF5A /* OEC64SystemResponder.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8DA1CD409A984C4541B4AE6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				818F9B2B140526C977CF41F9 /* OEApple2SystemController.m in Sources */,
+				414EC771FC2A1C9B9CF06189 /* OEApple2SystemResponder.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -6889,6 +6990,11 @@
 			isa = PBXTargetDependency;
 			target = 87FBC06C1BFC70FE00AECF5A /* Commodore 64 */;
 			targetProxy = 87FBC0C11BFC7A0000AECF5A /* PBXContainerItemProxy */;
+		};
+		6CB6C9621AF1F2B410C3C628 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 21173B8A79550C59E56DDD45 /* Apple IIe */;
+			targetProxy = 3BBCB57B913F0F5B68CBAAA3 /* PBXContainerItemProxy */;
 		};
 		8F94DEC5250EC701003A1F33 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -7682,10 +7788,30 @@
 			};
 			name = Debug;
 		};
+		1EBD05E78F1264A50DD443DA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "SystemPlugins/Apple IIe/Apple IIe-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = oesystemplugin;
+			};
+			name = Debug;
+		};
 		87FBC0721BFC70FE00AECF5A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				INFOPLIST_FILE = "SystemPlugins/Commodore 64/Commodore 64-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = oesystemplugin;
+			};
+			name = Release;
+		};
+		D7E7685C061847102A7E5737 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "SystemPlugins/Apple IIe/Apple IIe-Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = oesystemplugin;
@@ -8844,6 +8970,15 @@
 			buildConfigurations = (
 				87FBC0711BFC70FE00AECF5A /* Debug */,
 				87FBC0721BFC70FE00AECF5A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2CA71C08F116FE7FE19B8830 /* Build configuration list for PBXNativeTarget "Apple IIe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1EBD05E78F1264A50DD443DA /* Debug */,
+				D7E7685C061847102A7E5737 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -1,0 +1,203 @@
+diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
+index 89e30052..ef2b2b35 100644
+--- a/src/osd/headless/headless.mm
++++ b/src/osd/headless/headless.mm
+@@ -613,6 +613,75 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	[self _initializeGame:nil];
+ }
+ 
++#pragma mark - media
++
++- (device_image_interface *)_imageDeviceNamed:(NSString *)deviceName
++{
++	if (_machine == nullptr || deviceName.length == 0)
++	{
++		return nullptr;
++	}
++
++	std::string const name(deviceName.UTF8String);
++	for (device_image_interface &image : image_interface_enumerator(_machine->root_device()))
++	{
++		if (image.brief_instance_name() == name || image.instance_name() == name)
++		{
++			return &image;
++		}
++	}
++	return nullptr;
++}
++
++- (BOOL)loadMediaAtPath:(NSString *)path forDevice:(NSString *)deviceName error:(NSError **)error
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image == nullptr)
++	{
++		if (error)
++		{
++			NSString *desc = [NSString stringWithFormat:@"The running system has no media device named \"%@\".", deviceName];
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorMediaLoadFailed
++			                         userInfo:@{NSLocalizedDescriptionKey: desc}];
++		}
++		return NO;
++	}
++
++	image_init_result const res = image->load(std::string_view(path.fileSystemRepresentation));
++	if (res != image_init_result::PASS)
++	{
++		os_log_error(OE_LOG, "failed to load %{public}@ into %{public}@", path, deviceName);
++		if (error)
++		{
++			NSString *desc = [NSString stringWithFormat:@"MAME could not load \"%@\".", path.lastPathComponent];
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorMediaLoadFailed
++			                         userInfo:@{NSLocalizedDescriptionKey: desc}];
++		}
++		return NO;
++	}
++
++	return YES;
++}
++
++- (void)unloadMediaForDevice:(NSString *)deviceName
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image != nullptr && image->exists())
++	{
++		image->unload();
++	}
++}
++
++- (NSString *)mediaPathForDevice:(NSString *)deviceName
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image == nullptr || !image->exists())
++	{
++		return nil;
++	}
++	return @(image->filename());
++}
++
+ + (OSD *)shared
+ {
+ 	static OSD *shared;
+@@ -1110,6 +1179,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+ 	return _options;
+ }
+ 
++#pragma mark - generic option access
++
++- (BOOL)setValue:(NSString *)value forOptionNamed:(NSString *)name error:(NSError **)error
++{
++	std::string const optname(name.UTF8String);
++	NSString *failure = nil;
++
++	if (!_options->exists(optname))
++	{
++		failure = [NSString stringWithFormat:@"Unknown MAME option \"%@\".", name];
++	}
++	else
++	{
++		try
++		{
++			_options->set_value(optname, std::string_view(value.UTF8String), OPTION_PRIORITY_CMDLINE);
++		}
++		catch (options_exception &ex)
++		{
++			failure = [NSString stringWithFormat:@"MAME rejected %@ = \"%@\": %s", name, value, ex.message().c_str()];
++		}
++		catch (std::exception &ex)
++		{
++			failure = [NSString stringWithFormat:@"MAME rejected %@ = \"%@\": %s", name, value, ex.what()];
++		}
++	}
++
++	if (failure != nil)
++	{
++		os_log_error(OE_LOG, "%{public}@", failure);
++		if (error)
++		{
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorInvalidOption
++			                         userInfo:@{NSLocalizedDescriptionKey: failure}];
++		}
++		return NO;
++	}
++
++	return YES;
++}
++
++- (NSString *)valueForOptionNamed:(NSString *)name
++{
++	std::string const optname(name.UTF8String);
++	if (!_options->exists(optname))
++	{
++		return nil;
++	}
++	char const *value = _options->value(optname);
++	return value ? @(value) : @"";
++}
++
+ #pragma mark - core search path options
+ 
+ #define PATH_PROPERTY(OPT, SET, GET) \
+diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
+index a8ef9ff6..b578e94f 100644
+--- a/src/osd/headless/public/headless.h
++++ b/src/osd/headless/public/headless.h
+@@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
+ 	MAMEErrorInvalidDriver = -3,
+ 	MAMEErrorMissingFiles = -4,
+ 	MAMEErrorFatal = -5,
++	MAMEErrorInvalidOption = -6,
++	MAMEErrorMediaLoadFailed = -7,
+ };
+ 
+ @class OSD, AuditResult, AuditRecord, Device;
+@@ -121,6 +123,22 @@ OE_EXPORTED_CLASS
+ - (void)scheduleHardReset;
+ - (void)setBuffer:(void *)buffer size:(NSSize)size;
+ 
++#pragma mark - media (running machine)
++
++/*! Mounts the file at path in an image device of the running machine.
++ *
++ *  deviceName matches either the brief instance name ("flop1") or the full
++ *  instance name ("floppydisk1"). Must be called on the emulation thread,
++ *  between calls to -execute. Returns NO and sets error if no machine is
++ *  running, the device does not exist, or MAME fails to load the image. */
++- (BOOL)loadMediaAtPath:(NSString *)path forDevice:(NSString *)deviceName error:(NSError **)error;
++
++/*! Ejects whatever is mounted in the named image device, if anything. */
++- (void)unloadMediaForDevice:(NSString *)deviceName;
++
++/*! Path of the file mounted in the named image device, or nil if empty. */
++- (NSString *)mediaPathForDevice:(NSString *)deviceName;
++
+ @end
+ 
+ #pragma mark - Audit
+diff --git a/src/osd/headless/public/options.h b/src/osd/headless/public/options.h
+index 3f06d068..28ad7b13 100644
+--- a/src/osd/headless/public/options.h
++++ b/src/osd/headless/public/options.h
+@@ -40,6 +40,23 @@ DIRECTORY_PROPERTY(COMMENT, Comment, comment)
+  */
+ - (void)setBasePath:(NSString *)path;
+ 
++#pragma mark - generic option access
++
++/*! Sets any MAME option by name, at command-line priority.
++ *
++ *  Use this for options that have no dedicated property, such as slot options
++ *  ("gameio" = "joy") or media options ("flop1" = "/path/to/disk.woz").
++ *  Slot and media options only exist once a driver has been selected with
++ *  -[OSD setDriver:withAuditResult:error:], and a slot must be set before the
++ *  media options its card provides become available.
++ *
++ *  Returns NO and sets error (MAMEErrorInvalidOption) if the option does not
++ *  exist or MAME rejects the value. */
++- (BOOL)setValue:(NSString *)value forOptionNamed:(NSString *)name error:(NSError **)error;
++
++/*! Returns the current value of any MAME option, or nil if it does not exist. */
++- (NSString *)valueForOptionNamed:(NSString *)name;
++
+ #pragma mark - core performance options
+ 
+ BOOL_PROPERTY(AUTOFRAMESKIP, AutoFrameskip, autoFrameskip);

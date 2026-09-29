@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>${EXECUTABLE_NAME}</string>
+	<key>CFBundleIconFile</key>
+	<string></string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>${PRODUCT_NAME}</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSPrincipalClass</key>
+	<string>OEGameCoreController</string>
+	<key>OEGameCoreClass</key>
+	<string>MAMEApple2GameCore</string>
+	<key>OEGameCoreOptions</key>
+	<dict>
+		<key>openemu.system.apple2</key>
+		<dict>
+			<key>OEGameCoreRewindBufferSeconds</key>
+			<integer>10</integer>
+			<key>OEGameCoreRewindInterval</key>
+			<integer>0</integer>
+			<key>OEGameCoreSupportsCheatCode</key>
+			<true/>
+			<key>OEGameCoreSupportsDisplayModeChange</key>
+			<true/>
+			<key>OEGameCoreSupportsFileInsertion</key>
+			<true/>
+			<key>OEGameCoreSupportsMultipleDiscs</key>
+			<true/>
+			<key>OEGameCoreSupportsRewinding</key>
+			<true/>
+		</dict>
+	</dict>
+	<key>OEGameCorePlayerCount</key>
+	<string>2</string>
+	<key>OEProjectURL</key>
+	<string>https://www.mamedev.org</string>
+	<key>OESystemIdentifiers</key>
+	<array>
+		<string>openemu.system.apple2</string>
+	</array>
+	<key>SUEnableAutomaticChecks</key>
+	<string>0</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/OpenEmu-Silicon/OpenEmu-Silicon/main/Appcasts/mameapple2.xml</string>
+</dict>
+</plist>
