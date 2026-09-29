@@ -91,6 +91,8 @@ PLUGIN="$DD/Build/Products/Release/MAMEApple2.oecoreplugin"
 PLUGINS_DEST="$HOME/Library/Application Support/OpenEmu/MAMEApple2/plugins"
 mkdir -p "$PLUGINS_DEST"
 rsync -a "$CORE_DIR/deps/mame/plugins/" "$PLUGINS_DEST/"
+# Plugins kept in this repo (ported to MAME 0.250's Lua API).
+rsync -a "$CORE_DIR/plugins/" "$PLUGINS_DEST/"
 echo "MAME Lua plugins installed in: $PLUGINS_DEST"
 
 echo ""

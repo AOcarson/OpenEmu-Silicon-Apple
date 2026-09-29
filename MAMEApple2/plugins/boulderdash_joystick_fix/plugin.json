@@ -1,0 +1,10 @@
+{
+	"plugin": {
+		"name": "boulderdash_joystick_fix",
+		"description": "Apple II Boulder Dash joystick timing compatibility fix",
+		"version": "1.0.0-mame0250",
+		"author": "Community compatibility shim",
+		"type": "plugin",
+		"start": "false"
+	}
+}

@@ -130,6 +130,12 @@ own plugins, and list it in the game's settings file:
 </array>
 ```
 
+Plugins kept in `MAMEApple2/plugins/` in this repo are installed there by
+the build script too — currently `boulderdash_joystick_fix`, which extends the
+joystick's maximum paddle timing (255 → 287, like AppleWin and KEGS) so
+Boulder Dash can move right and down. It only activates when a Boulder Dash
+disk is mounted.
+
 Plugins start when the game is opened, so changes apply the next time you
 open it. A plugin name that isn't installed is skipped (and logged) rather
 than stopping the game. Note these run on MAME 0.250's Lua API: a plugin
