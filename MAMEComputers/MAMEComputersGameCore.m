@@ -588,7 +588,19 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     os_log_info(OE_CORE_LOG, "loading %{public}@ on %{public}@ (%lu disk(s) in set), machine %{public}@, settings %{public}@",
                 path.lastPathComponent, self.systemIdentifier, (unsigned long)_disks.paths.count, self.machine, _settingsPath);
 
-    return [self startMachineWithError:error];
+    NSError *startError = nil;
+    if (![self startMachineWithError:&startError])
+    {
+        // OpenEmu shows its own generic message, so this log is where the reason is.
+        os_log_error(OE_CORE_LOG, "could not start: %{public}@ %{public}@",
+                     startError.localizedDescription, startError.localizedRecoverySuggestion ?: @"");
+        if (error)
+        {
+            *error = startError;
+        }
+        return NO;
+    }
+    return YES;
 }
 
 /*! Selects the driver, applies every option and boots. Used for the first
@@ -608,8 +620,10 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
     NSString *machine = self.machine;
     AuditResult *audit = nil;
-    if (![_osd setDriver:machine withAuditResult:&audit error:nil])
+    NSError *driverError = nil;
+    if (![_osd setDriver:machine withAuditResult:&audit error:&driverError])
     {
+        os_log_error(OE_CORE_LOG, "MAME has no machine \"%{public}@\": %{public}@", machine, driverError);
         if (error)
         {
             *error = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
