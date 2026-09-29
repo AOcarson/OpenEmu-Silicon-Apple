@@ -68,6 +68,51 @@
 				<string>OEC64SwapJoysticks</string>
 			</dict>
 		</array>
+		<array>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>MAME Menu</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64MAMEMenu</string>
+			</dict>
+			<string>-</string>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 1</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra1</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 2</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra2</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 3</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra3</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 4</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra4</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 5</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra5</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 6</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEC64Extra6</string>
+			</dict>
+		</array>
 	</array>
 	<key>OEControlTypesKey</key>
 	<dict>
@@ -115,6 +160,13 @@
 		<string>OEC64ButtonFire</string>
 		<string>OEC64ButtonJump</string>
 		<string>OEC64SwapJoysticks</string>
+		<string>OEC64MAMEMenu</string>
+		<string>OEC64Extra1</string>
+		<string>OEC64Extra2</string>
+		<string>OEC64Extra3</string>
+		<string>OEC64Extra4</string>
+		<string>OEC64Extra5</string>
+		<string>OEC64Extra6</string>
 	</array>
 	<key>OENumberOfPlayersKey</key>
 	<integer>2</integer>

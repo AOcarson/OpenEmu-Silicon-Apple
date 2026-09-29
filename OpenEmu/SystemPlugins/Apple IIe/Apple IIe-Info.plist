@@ -68,6 +68,51 @@
 				<string>OEApple2Reset</string>
 			</dict>
 		</array>
+		<array>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>MAME Menu</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2MAMEMenu</string>
+			</dict>
+			<string>-</string>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 1</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra1</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 2</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra2</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 3</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra3</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 4</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra4</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 5</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra5</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Extra 6</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEApple2Extra6</string>
+			</dict>
+		</array>
 	</array>
 	<key>OEControlTypesKey</key>
 	<dict>
@@ -116,6 +161,13 @@
 		<string>OEApple2Button0</string>
 		<string>OEApple2Button1</string>
 		<string>OEApple2Reset</string>
+		<string>OEApple2MAMEMenu</string>
+		<string>OEApple2Extra1</string>
+		<string>OEApple2Extra2</string>
+		<string>OEApple2Extra3</string>
+		<string>OEApple2Extra4</string>
+		<string>OEApple2Extra5</string>
+		<string>OEApple2Extra6</string>
 	</array>
 	<key>OENumberOfPlayersKey</key>
 	<integer>2</integer>

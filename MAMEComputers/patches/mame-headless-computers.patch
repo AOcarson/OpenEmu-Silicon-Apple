@@ -50,11 +50,82 @@ index db1eab2c..790a1cb3 100644
  
  		item_append(menu_item_type::SEPARATOR);
  
+diff --git a/src/frontend/mame/ui/ui.cpp b/src/frontend/mame/ui/ui.cpp
+index 44ca3190..80651c4b 100644
+--- a/src/frontend/mame/ui/ui.cpp
++++ b/src/frontend/mame/ui/ui.cpp
+@@ -1004,6 +1004,42 @@ void mame_ui_manager::show_menu()
+ }
+ 
+ 
++//-------------------------------------------------
++//  hide_menu - close any open menus and return
++//  to the in-game handler (used by host
++//  frontends of the headless build)
++//-------------------------------------------------
++
++void mame_ui_manager::hide_menu()
++{
++	if (!is_menu_active())
++		return;
++	ui::menu::stack_reset(*this);
++	set_handler(ui_callback_type::GENERAL, handler_callback_func(&mame_ui_manager::handler_ingame, this));
++}
++
++
++//-------------------------------------------------
++//  menu hooks for the headless OSD, which can't
++//  include this header
++//-------------------------------------------------
++
++bool headless_ui_menu_active(running_machine &machine)
++{
++	return static_cast<mame_ui_manager &>(machine.ui()).is_menu_active();
++}
++
++void headless_ui_show_menu(running_machine &machine)
++{
++	static_cast<mame_ui_manager &>(machine.ui()).show_menu();
++}
++
++void headless_ui_hide_menu(running_machine &machine)
++{
++	static_cast<mame_ui_manager &>(machine.ui()).hide_menu();
++}
++
++
+ //-------------------------------------------------
+ //  show_mouse - change mouse status
+ //-------------------------------------------------
+diff --git a/src/frontend/mame/ui/ui.h b/src/frontend/mame/ui/ui.h
+index e773e669..8f361163 100644
+--- a/src/frontend/mame/ui/ui.h
++++ b/src/frontend/mame/ui/ui.h
+@@ -177,6 +177,7 @@ public:
+ 	void set_show_profiler(bool show);
+ 	bool show_profiler() const;
+ 	void show_menu();
++	void hide_menu();
+ 	void show_mouse(bool status);
+ 	virtual bool is_menu_active() override;
+ 	bool can_paste();
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..0eb81ecc 100644
+index 89e30052..671bc27f 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
-@@ -216,6 +216,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -49,6 +49,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
+ 
+ static os_log_t OE_LOG;
+ 
++// MAME menu hooks, defined in frontend/mame/ui/ui.cpp (which this file can't include).
++bool headless_ui_menu_active(running_machine &machine);
++void headless_ui_show_menu(running_machine &machine);
++void headless_ui_hide_menu(running_machine &machine);
++
+ NSString *const MAMEErrorDomain = @"org.openemu.mame.ErrorDomain";
+ 
+ void osd_setup_osd_specific_emu_options(emu_options &opts)
+@@ -216,6 +221,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
  
  	bool _isEmpty;
@@ -62,7 +133,7 @@ index 89e30052..0eb81ecc 100644
  }
  
  + (void)initialize
-@@ -239,7 +240,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -239,7 +245,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  
  	_manager = mame_machine_manager::instance(*_options.options, *_osd);
  	_manager->start_http_server();
@@ -72,7 +143,7 @@ index 89e30052..0eb81ecc 100644
  
  	// arbitrary size
  	_maxBufferSize = NSMakeSize(2048, 2048);
-@@ -443,6 +445,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -443,6 +450,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	}
  }
  
@@ -104,7 +175,7 @@ index 89e30052..0eb81ecc 100644
  - (BOOL)_initializeGame:(NSError **)error
  {
  	[self _freeMachine];
-@@ -465,6 +492,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -465,6 +497,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  		valid.check_shared_source(*_gameDriver);
  	}
  
@@ -113,7 +184,7 @@ index 89e30052..0eb81ecc 100644
  	_config = new machine_config(*_gameDriver, *_options.options);
  	_machine = new running_machine(*_config, *_manager);
  	_manager->set_machine(_machine);
-@@ -599,6 +628,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -599,6 +633,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _applyCheats];
  	_machine->headless_run();
  
@@ -131,7 +202,7 @@ index 89e30052..0eb81ecc 100644
  	return YES;
  }
  
-@@ -613,6 +653,75 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -613,6 +658,98 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _initializeGame:nil];
  }
  
@@ -204,10 +275,33 @@ index 89e30052..0eb81ecc 100644
 +	return @(image->filename());
 +}
 +
++#pragma mark - MAME menu
++
++- (BOOL)menuActive
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return NO;
++	return headless_ui_menu_active(*_machine);
++}
++
++- (void)showMenu
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return;
++	headless_ui_show_menu(*_machine);
++}
++
++- (void)hideMenu
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return;
++	headless_ui_hide_menu(*_machine);
++}
++
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -1110,6 +1219,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -1110,6 +1247,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  
@@ -267,7 +361,7 @@ index 89e30052..0eb81ecc 100644
  
  #define PATH_PROPERTY(OPT, SET, GET) \
 diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
-index a8ef9ff6..b578e94f 100644
+index a8ef9ff6..17a5574c 100644
 --- a/src/osd/headless/public/headless.h
 +++ b/src/osd/headless/public/headless.h
 @@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
@@ -279,7 +373,7 @@ index a8ef9ff6..b578e94f 100644
  };
  
  @class OSD, AuditResult, AuditRecord, Device;
-@@ -121,6 +123,22 @@ OE_EXPORTED_CLASS
+@@ -121,6 +123,36 @@ OE_EXPORTED_CLASS
  - (void)scheduleHardReset;
  - (void)setBuffer:(void *)buffer size:(NSSize)size;
  
@@ -298,6 +392,20 @@ index a8ef9ff6..b578e94f 100644
 +
 +/*! Path of the file mounted in the named image device, or nil if empty. */
 +- (NSString *)mediaPathForDevice:(NSString *)deviceName;
++
++#pragma mark - MAME menu (running machine)
++
++/*! YES while one of MAME's menus is on screen. While it is, MAME ignores
++ *  the emulated machine's inputs and reads its UI keys (arrows, Enter, Esc,
++ *  Tab) instead. */
++@property (nonatomic, readonly) BOOL menuActive;
++
++/*! Opens MAME's main menu, as Tab does with UI keys enabled, whether or not
++ *  UI keys are enabled. Emulation thread only, between calls to -execute. */
++- (void)showMenu;
++
++/*! Closes any open MAME menu. Emulation thread only. */
++- (void)hideMenu;
 +
  @end
  

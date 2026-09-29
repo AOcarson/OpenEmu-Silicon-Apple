@@ -70,8 +70,10 @@ static NSString *const MCModeDrive2       = @"mc.drive2";
 static NSString *const MCModeJoystickFix  = @"mc.joystickfix";
 static NSString *const MCModeJoystickPort = @"mc.joystickport";
 static NSString *const MCModeAutostart    = @"mc.autostart";
+static NSString *const MCModeMAMEMenu     = @"mc.mamemenu";
 
 enum { MCMaxPlayers = 2 };
+enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
 enum { MCDriveEmpty = -1 };
 
 #pragma mark - Keyboard mapping
@@ -105,9 +107,11 @@ typedef struct
     KEY(0x22, 5, "5"), KEY(0x23, 6, "6"), KEY(0x24, 7, "7"), KEY(0x25, 8, "8"), \
     KEY(0x26, 9, "9"), KEY(0x27, 0, "0")
 
-// fn-Delete (Forward Delete) toggles MAME's UI keys on and off, as with
-// MAME's own Scroll Lock / fn-Delete. While on, Tab opens MAME's menu.
-#define MC_UI_TOGGLE KEY(0x4C, SCRLOCK, "Toggle MAME UI (fn-Delete)")
+// Forward Delete (fn-Delete on external keyboards) toggles MAME's UI keys on
+// and off, as with MAME's own Scroll Lock. While on, Tab opens MAME's menu.
+// Mac laptop keyboards report fn-Delete to OpenEmu as plain Delete, so the
+// menu also has its own control (F9 by default) and a Display Mode item.
+#define MC_UI_TOGGLE KEY(0x4C, SCRLOCK, "Toggle MAME UI (Forward Delete)")
 
 // Apple //e: MAME's matrix uses the PC layout directly (Open Apple = left
 // Alt, Solid Apple = right Alt, RESET = F12).
@@ -136,7 +140,8 @@ static const MCKeyMapping Apple2KeyMap[] =
 
     KEY(0x3A, F1, "F1"),  KEY(0x3B, F2, "F2"),  KEY(0x3C, F3, "F3"),  KEY(0x3D, F4, "F4"),
     KEY(0x3E, F5, "F5"),  KEY(0x3F, F6, "F6"),  KEY(0x40, F7, "F7"),  KEY(0x41, F8, "F8"),
-    KEY(0x42, F9, "F9"),  KEY(0x43, F10, "F10"), KEY(0x44, F11, "F11"), KEY(0x45, F12, "F12 (Reset)"),
+    // F9 is left out: it is OpenEmu's default key for the MAME menu control.
+    KEY(0x43, F10, "F10"), KEY(0x44, F11, "F11"), KEY(0x45, F12, "F12 (Reset)"),
 
     MC_UI_TOGGLE,
 
@@ -205,11 +210,17 @@ static const MCKeyMapping C64KeyMap[] =
     KEY   (0x40, F4,         "F7"),
     KEYMOD(0x41, F4, LSHIFT, "F8"),
 
-    KEY(0x4A, INSERT,     "CLR/HOME (fn-Left)"),
-    KEY(0x4B, PRTSCR,     "RESTORE (fn-Up)"),
+    // The C64's extra keys, on F10-F12 (F9 is the MAME menu control) and on
+    // Home/Page Up/End/Page Down for keyboards that have them. fn-arrows on
+    // a Mac laptop arrive as plain arrows, so F10-F12 are the ones to use there.
+    KEY(0x43, PRTSCR,     "RESTORE (F10)"),
+    KEY(0x44, INSERT,     "CLR/HOME (F11)"),
+    KEY(0x45, DEL,        "Up Arrow (F12)"),
+    KEY(0x4A, INSERT,     "CLR/HOME (Home)"),
+    KEY(0x4B, PRTSCR,     "RESTORE (Page Up)"),
     MC_UI_TOGGLE,
-    KEY(0x4D, BACKSLASH2, "Pound (fn-Right)"),
-    KEY(0x4E, DEL,        "Up Arrow (fn-Down)"),
+    KEY(0x4D, BACKSLASH2, "Pound (End)"),
+    KEY(0x4E, DEL,        "Up Arrow (Page Down)"),
 
     // The C64's two cursor keys go down/right; Shift reverses them.
     KEY   (0x4F, RCONTROL,         "Cursor Right"),
@@ -225,6 +236,46 @@ static const MCKeyMapping C64KeyMap[] =
     KEY(0xE4, TAB,    "CTRL (Control)"),
     KEY(0xE5, RSHIFT, "Right Shift"),
     KEY(0xE6, LALT,   "Commodore (Option)"),
+};
+
+// While one of MAME's menus is open the keyboard types PC keys, so the menu
+// works the same on every machine: arrows move, Return selects, Esc goes
+// back, Tab closes, Delete clears an input assignment.
+static const MCKeyMapping MenuKeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x29, ESC,        "Esc"),
+    KEYMOD(0x2A, BACKSPACE, DEL, "Delete"),
+    KEY(0x2B, TAB,        "Tab"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "-"),
+    KEY(0x2E, EQUALS,     "="),
+    KEY(0x2F, OPENBRACE,  "["),
+    KEY(0x30, CLOSEBRACE, "]"),
+    KEY(0x31, BACKSLASH,  "\\"),
+    KEY(0x33, COLON,      ";"),
+    KEY(0x34, QUOTE,      "'"),
+    KEY(0x35, TILDE,      "`"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    MC_UI_TOGGLE,
+    KEY(0x4A, HOME,       "Home"),
+    KEY(0x4B, PGUP,       "Page Up"),
+    KEY(0x4D, END,        "End"),
+    KEY(0x4E, PGDN,       "Page Down"),
+    KEY(0x4F, RIGHT,      "Right"),
+    KEY(0x50, LEFT,       "Left"),
+    KEY(0x51, DOWN,       "Down"),
+    KEY(0x52, UP,         "Up"),
+    KEY(0xE0, LCONTROL,   "Control"),
+    KEY(0xE1, LSHIFT,     "Left Shift"),
+    KEY(0xE2, LALT,       "Option"),
+    KEY(0xE4, RCONTROL,   "Right Control"),
+    KEY(0xE5, RSHIFT,     "Right Shift"),
+    KEY(0xE6, RALT,       "Right Option"),
 };
 
 #undef KEY
@@ -288,6 +339,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     int32_t _keys[InputItemID_ABSOLUTE_MAXIMUM];
     int32_t _axes[MCMaxPlayers][2];
     int32_t _buttons[MCMaxPlayers][2];
+    int32_t _extras[MCMaxPlayers][MCExtraButtons];
 
     // raw input, combined into the above
     BOOL    _hidDown[256];
@@ -295,6 +347,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     CGFloat _stick[MCMaxPlayers][MCDirCount];    // gamepad deflection 0...1
     BOOL    _padButton[MCMaxPlayers][2];         // gamepad buttons (Apple: 0/1; C64: fire)
     BOOL    _jumpHeld[MCMaxPlayers];             // C64 "Jump" (joystick up)
+
+    // MAME menu. Requests come from other threads and are carried out on the
+    // emulation thread, between frames.
+    BOOL _menuMode;                  // keyboard is typing PC keys for the menu
+    volatile BOOL _menuToggleRequested;
+    volatile BOOL _menuOpenRequested;
 
     uint32_t  *_buffer;
     OEIntSize  _bufferSize;
@@ -314,6 +372,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     NSString  *_cartridgePath; // C64 cartridge inserted after launch
 
     NSString *_settingsPath;
+    NSString *_gameFolderName;     // this game's name, safe as a folder name
     NSMutableDictionary<NSString *, id> *_settings;
 
     NSMutableDictionary<NSString *, NSDictionary *> *_cheatList;
@@ -367,6 +426,16 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 }
 
 - (const MCKeyMapping *)keyMap:(size_t *)count
+{
+    if (_menuMode)
+    {
+        *count = sizeof(MenuKeyMap) / sizeof(MenuKeyMap[0]);
+        return MenuKeyMap;
+    }
+    return [self machineKeyMap:count];
+}
+
+- (const MCKeyMapping *)machineKeyMap:(size_t *)count
 {
     if (self.isC64)
     {
@@ -443,6 +512,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     NSString *root = [self.supportDirectoryPath stringByAppendingPathComponent:@"Game Settings"];
     NSString *name = [[settingsName stringByReplacingOccurrencesOfString:@"/" withString:@"-"]
                       stringByReplacingOccurrencesOfString:@":" withString:@"-"];
+    _gameFolderName = name;
     NSString *file = [name stringByAppendingPathExtension:@"plist"];
     _settingsPath = [[root stringByAppendingPathComponent:self.systemFolderName] stringByAppendingPathComponent:file];
 
@@ -488,32 +558,53 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         [dev addItemNamed:@"Y Axis"   id:InputItemID_YAXIS   getter:mc_get_state context:&_axes[player][1]];
         [dev addItemNamed:@"Button 1" id:InputItemID_BUTTON1 getter:mc_get_state context:&_buttons[player][0]];
         [dev addItemNamed:@"Button 2" id:InputItemID_BUTTON2 getter:mc_get_state context:&_buttons[player][1]];
+        for (int extra = 0; extra < MCExtraButtons; extra++)
+        {
+            // OpenEmu's "Extra n" controls; MAME calls them Button 3-8.
+            [dev addItemNamed:[NSString stringWithFormat:@"Button %d", extra + 3]
+                           id:(InputItemID)(InputItemID_BUTTON3 + extra)
+                       getter:mc_get_state context:&_extras[player][extra]];
+        }
     }
+
+    // A new machine starts with its menus closed.
+    _menuMode = NO;
 
     InputDevice *kb = [_osd.keyboard addDeviceNamed:@"OpenEmu Keyboard"];
     BOOL added[InputItemID_ABSOLUTE_MAXIMUM] = { NO };
 
-    size_t count = 0;
-    const MCKeyMapping *map = [self keyMap:&count];
-    for (size_t i = 0; i < count; i++)
+    // Every key either map can press: the machine's, then the menu's.
+    size_t machineCount = 0, menuCount = sizeof(MenuKeyMap) / sizeof(MenuKeyMap[0]);
+    const MCKeyMapping *machineMap = [self machineKeyMap:&machineCount];
+    const MCKeyMapping *maps[] = { machineMap, MenuKeyMap };
+    size_t counts[] = { machineCount, menuCount };
+
+    for (int m = 0; m < 2; m++)
     {
-        InputItemID item = map[i].item;
-        if (added[item])
+        for (size_t i = 0; i < counts[m]; i++)
         {
-            continue; // several Mac keys can share one emulated key
+            InputItemID item = maps[m][i].item;
+            if (added[item])
+            {
+                continue; // several Mac keys can share one emulated key
+            }
+            added[item] = YES;
+            [kb addItemNamed:@(maps[m][i].name) id:item getter:mc_get_state context:&_keys[item]];
         }
-        added[item] = YES;
-        [kb addItemNamed:@(map[i].name) id:item getter:mc_get_state context:&_keys[item]];
     }
 
-    // Shift, when only used as a key's modifier (it is always also a key).
-    for (size_t i = 0; i < count; i++)
+    // Keys only ever pressed as another key's modifier.
+    for (int m = 0; m < 2; m++)
     {
-        InputItemID mod = map[i].mod;
-        if (mod != InputItemID_INVALID && !added[mod])
+        for (size_t i = 0; i < counts[m]; i++)
         {
-            added[mod] = YES;
-            [kb addItemNamed:@"Shift" id:mod getter:mc_get_state context:&_keys[mod]];
+            InputItemID mod = maps[m][i].mod;
+            if (mod != InputItemID_INVALID && !added[mod])
+            {
+                added[mod] = YES;
+                [kb addItemNamed:(mod == InputItemID_DEL ? @"Delete" : @"Shift") id:mod
+                          getter:mc_get_state context:&_keys[mod]];
+            }
         }
     }
 
@@ -609,6 +700,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 {
     Options *opts = _osd.options;
     [opts setBasePath:self.supportDirectoryPath];
+    // MAME's own settings (input assignments, DIP switches, machine
+    // configuration, made in MAME's menu) are kept per game, so a key bound
+    // for one game doesn't change another.
+    opts.CFGDirectory = [[[self.supportDirectoryPath stringByAppendingPathComponent:@"cfg"]
+                          stringByAppendingPathComponent:self.systemFolderName]
+                         stringByAppendingPathComponent:_gameFolderName];
     opts.romsPath = [self romSearchPath];
     opts.cheat = NO;
     opts.autoStretchXY = NO;
@@ -1110,6 +1207,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
 
     [modes addObject:@{ OEGameCoreDisplayModeSeparatorItemKey: @"" }];
+    [modes addObject:MCToggle(@"Open MAME Menu", MCModeMAMEMenu, NO)];
+    [modes addObject:@{ OEGameCoreDisplayModeSeparatorItemKey: @"" }];
     [modes addObject:@{ OEGameCoreDisplayModeLabelKey: @"Settings are saved for this game" }];
 
     return modes;
@@ -1164,6 +1263,10 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     {
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
+    }
+    else if ([key isEqualToString:MCModeMAMEMenu])
+    {
+        _menuOpenRequested = YES;
     }
     else if ([key isEqualToString:MCModeAutostart])
     {
@@ -1223,10 +1326,49 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 
 - (void)executeFrame
 {
-    if (_machineRunning)
+    if (!_machineRunning)
     {
-        [_osd execute];
+        return;
     }
+
+    if (_menuOpenRequested || _menuToggleRequested)
+    {
+        BOOL toggle = _menuToggleRequested;
+        _menuOpenRequested = _menuToggleRequested = NO;
+        if (toggle && _osd.menuActive)
+            [_osd hideMenu];
+        else
+            [_osd showMenu];
+    }
+    [self syncMenuMode];
+
+    [_osd execute];
+}
+
+/*! Switches the keyboard between the machine's layout and plain PC keys when
+ *  MAME's menu opens or closes (by any means, including Esc in the menu). */
+- (void)syncMenuMode
+{
+    BOOL active = _osd.menuActive;
+    if (active == _menuMode)
+    {
+        return;
+    }
+    _menuMode = active;
+
+    // Release everything, then press what is held in the new layout.
+    BOOL port1 = _keys[C64SignalJoystickPort1], noAuto = _keys[C64SignalNoAutostart];
+    memset(_keys, 0, sizeof(_keys));
+    _keys[C64SignalJoystickPort1] = port1;
+    _keys[C64SignalNoAutostart] = noAuto;
+    for (NSUInteger hid = 0; hid < 256; hid++)
+    {
+        if (_hidDown[hid])
+        {
+            [self updateKeyItemsForHID:hid];
+        }
+    }
+    [self updateJoystickForPlayer:0];
 }
 
 - (void)stopEmulation
@@ -1251,7 +1393,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 
 - (BOOL)hidKeyIsJoystick:(NSUInteger)hid
 {
-    if (!self.arrowKeysAreJoystick)
+    if (_menuMode || !self.arrowKeysAreJoystick)
     {
         return NO;
     }
@@ -1370,7 +1512,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     BOOL fire = _padButton[player][0];
 
     // Arrow keys drive joystick 1 at full deflection when the gamepad is centred.
-    if (player == 0 && self.arrowKeysAreJoystick)
+    if (player == 0 && !_menuMode && self.arrowKeysAreJoystick)
     {
         if (x == 0) x = (CGFloat)_hidDown[MCHIDRight] - (CGFloat)_hidDown[MCHIDLeft];
         if (y == 0) y = (CGFloat)_hidDown[MCHIDDown]  - (CGFloat)_hidDown[MCHIDUp];
@@ -1408,6 +1550,23 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     [self updateJoystickForPlayer:player - 1];
 }
 
+- (void)setExtraButton:(NSUInteger)extra pressed:(BOOL)pressed forPlayer:(NSUInteger)player
+{
+    if (player < 1 || player > MCMaxPlayers || extra >= MCExtraButtons)
+    {
+        return;
+    }
+    _extras[player - 1][extra] = pressed ? 1 : 0;
+}
+
+- (void)menuControlPressed:(BOOL)pressed
+{
+    if (pressed)
+    {
+        _menuToggleRequested = YES;
+    }
+}
+
 // Apple II
 
 - (oneway void)didMoveApple2Joystick:(OEApple2Button)direction withValue:(CGFloat)value forPlayer:(NSUInteger)player
@@ -1440,6 +1599,13 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
             [self updateKeyItem:InputItemID_LCONTROL];
             [self updateKeyItem:InputItemID_F12];
             break;
+        case OEApple2MAMEMenu:
+            [self menuControlPressed:pressed];
+            break;
+        case OEApple2Extra1: case OEApple2Extra2: case OEApple2Extra3:
+        case OEApple2Extra4: case OEApple2Extra5: case OEApple2Extra6:
+            [self setExtraButton:button - OEApple2Extra1 pressed:pressed forPlayer:player];
+            break;
         default:
             break;
     }
@@ -1469,6 +1635,13 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
             break;
         case OEC64ButtonFire:
             [self setPadButton:0 pressed:pressed forPlayer:player];
+            break;
+        case OEC64MAMEMenu:
+            [self menuControlPressed:pressed];
+            break;
+        case OEC64Extra1: case OEC64Extra2: case OEC64Extra3:
+        case OEC64Extra4: case OEC64Extra5: case OEC64Extra6:
+            [self setExtraButton:button - OEC64Extra1 pressed:pressed forPlayer:player];
             break;
         case OEC64ButtonJump:
             // "Jump" is joystick up, for games where up means jump.

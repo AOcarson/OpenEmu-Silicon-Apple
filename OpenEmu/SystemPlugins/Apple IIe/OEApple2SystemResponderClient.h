@@ -34,7 +34,9 @@
  *  gamepad's analog stick drives the Apple II's proportional joystick, while
  *  d-pads and keys give full deflection. Button 0 and Button 1 are wired to the
  *  same inputs as the Open Apple and Solid Apple keys, exactly like the real
- *  hardware. Reset presses Control-Reset. */
+ *  hardware. Reset presses Control-Reset. MAME Menu opens or closes MAME's
+ *  menu. Extra 1-6 are spare joystick buttons for binding to keys in MAME's
+ *  Input Settings (they appear there as Joy n Button 3-8). */
 typedef enum
 {
     OEApple2JoystickUp,
@@ -44,6 +46,13 @@ typedef enum
     OEApple2Button0,
     OEApple2Button1,
     OEApple2Reset,
+    OEApple2MAMEMenu,
+    OEApple2Extra1,
+    OEApple2Extra2,
+    OEApple2Extra3,
+    OEApple2Extra4,
+    OEApple2Extra5,
+    OEApple2Extra6,
     OEApple2ButtonCount
 } OEApple2Button;
 

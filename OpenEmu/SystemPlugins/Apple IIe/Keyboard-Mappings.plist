@@ -4,5 +4,7 @@
 <dict>
 	<key>OEApple2Reset</key>
 	<integer>69</integer>
+	<key>OEApple2MAMEMenu</key>
+	<integer>66</integer>
 </dict>
 </plist>

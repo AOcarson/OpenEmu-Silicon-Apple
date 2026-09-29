@@ -22,6 +22,20 @@
 		<string>{0, 0}</string>
 		<key>OEC64SwapJoysticks</key>
 		<string>{0, 0}</string>
+		<key>OEC64MAMEMenu</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra1</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra2</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra3</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra4</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra5</key>
+		<string>{0, 0}</string>
+		<key>OEC64Extra6</key>
+		<string>{0, 0}</string>
 	</dict>
 </dict>
 </plist>

@@ -137,13 +137,13 @@ special keys are:
 | C64 key | Mac key |
 |---|---|
 | RUN/STOP | Esc |
-| RESTORE | fn-Up (Page Up) |
-| CLR/HOME | fn-Left (Home) |
+| RESTORE | F10 (or Page Up) |
+| CLR/HOME | F11 (or Home) |
 | INST/DEL | Delete |
 | CTRL | Tab or Control |
 | Commodore (C=) | Option |
-| £ | fn-Right (End) |
-| ↑ | fn-Down (Page Down) |
+| £ | End |
+| ↑ | F12 (or Page Down) |
 | ← | `` ` `` |
 | SHIFT LOCK | Caps Lock |
 | F1–F8 | F1–F8 (the core presses Shift for F2/F4/F6/F8) |
@@ -155,16 +155,43 @@ Command is left to the Mac.
 
 ### MAME's menu
 
-Like standalone MAME, both machines start with MAME's UI keys off so every
-key reaches the emulated keyboard. **fn-Delete** (Forward Delete) toggles them
-on and off; while on, **Tab** opens MAME's menu (Input Settings, DIP Switches,
-Machine Configuration, File Manager, Tape Control, Slot Devices, BIOS
-Selection, Slider Controls, Cheat, Plugin Options). Changes made there are
-saved in MAME's own config files under
-`~/Library/Application Support/OpenEmu/MAMEComputers/cfg`. Slot changes need
-**Reset System** from the Slot Devices menu, which restarts the machine. Esc
-with UI keys on asks before "quitting", which just restarts the machine;
-OpenEmu's own controls close the game.
+Open MAME's menu (Input Settings, DIP Switches, Machine Configuration, File
+Manager, Tape Control, Slot Devices, BIOS Selection, Slider Controls, Cheat,
+Plugin Options) any of these ways:
+
+- **F9** — the **MAME Menu** control in Preferences › Controls, so it can be
+  moved to another key or a gamepad button. Press it again to close the menu.
+- **Open MAME Menu** in the Display Mode menu of the HUD bar.
+- MAME's own way: **Forward Delete** toggles MAME's UI keys on (so every key
+  otherwise reaches the emulated keyboard), then **Tab**. Mac laptop keyboards
+  send fn-Delete to OpenEmu as plain Delete, so this only works with a
+  keyboard that has a Forward Delete key.
+
+While the menu is open the keyboard types plain PC keys, whatever the
+machine: arrows move, Return selects, Esc goes back, Delete clears an
+assignment, Tab closes the menu. A gamepad's stick and first button work too.
+F-keys on a Mac laptop need fn held, or "Use F1, F2, etc. keys as standard
+function keys" switched on in System Settings › Keyboard.
+
+Changes made there are saved **per game** in MAME's own config files under
+`~/Library/Application Support/OpenEmu/MAMEComputers/cfg/<system>/<game>/`.
+Slot changes need **Reset System** from the Slot Devices menu, which restarts
+the machine.
+
+### Binding keys to gamepad buttons
+
+Games that need keys beyond the joystick (a space bar to start, F1 for
+options, RUN/STOP to pause) can have them on a gamepad:
+
+1. In Preferences › Controls, bind gamepad buttons to **Extra 1–6** (they sit
+   under MAME Menu, for both systems).
+2. In the game, open MAME's menu › Input Settings › Input Assignments (this
+   system), pick the key (e.g. "Space"), and press the gamepad button. MAME
+   shows it as Joy 1 Button 3–8 (Extra 1 is Button 3).
+
+The assignment is saved for that game only. On the C64, leave the control
+port joysticks to OpenEmu's Joystick Port setting: the core re-routes them
+each time the game starts.
 
 ### Per-game settings (the Display Mode menu)
 

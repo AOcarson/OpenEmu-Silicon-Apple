@@ -37,6 +37,13 @@ typedef enum
     OEC64ButtonFire,
     OEC64ButtonJump,
     OEC64SwapJoysticks,
+    OEC64MAMEMenu,      // opens or closes MAME's menu (MAMEComputers core)
+    OEC64Extra1,        // spare joystick buttons for binding to keys in
+    OEC64Extra2,        // MAME's Input Settings (Joy n Button 3-8)
+    OEC64Extra3,
+    OEC64Extra4,
+    OEC64Extra5,
+    OEC64Extra6,
     OEC64ButtonCount
 } OEC64Button;
 

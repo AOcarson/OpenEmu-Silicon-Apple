@@ -22,6 +22,20 @@
 		<string>{0, 0}</string>
 		<key>OEApple2Reset</key>
 		<string>{0, 0}</string>
+		<key>OEApple2MAMEMenu</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra1</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra2</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra3</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra4</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra5</key>
+		<string>{0, 0}</string>
+		<key>OEApple2Extra6</key>
+		<string>{0, 0}</string>
 	</dict>
 </dict>
 </plist>
