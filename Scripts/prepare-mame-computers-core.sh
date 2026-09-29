@@ -30,6 +30,8 @@ mkdir -p "$DEPS_DIR"
 if [ ! -e "$SRC_DIR" ] && [ -e "$OLD_SRC_DIR/.git" ]; then
   echo "Moving the existing MAME checkout from MAMEApple2/deps to MAMEComputers/deps..."
   mv "$OLD_SRC_DIR" "$SRC_DIR"
+  # Its compiled objects record their old absolute paths; start them fresh.
+  rm -rf "$SRC_DIR/build"
   rmdir "$(dirname "$OLD_SRC_DIR")" "$(dirname "$(dirname "$OLD_SRC_DIR")")" 2>/dev/null || true
 fi
 
@@ -63,5 +65,13 @@ for patch in "${PATCHES[@]}"; do
   fi
   git apply "$patch"
 done
+
+# Object files built before the checkout moved (from MAMEApple2/deps) name
+# headers by their old absolute paths, which make then can't find. Clear them
+# so everything is rebuilt from the current location.
+if [ -d build ] && grep -rqsl --include='*.d' "/MAMEApple2/deps/mame/" build; then
+  echo "Removing MAME objects built at the old MAMEApple2/deps location..."
+  rm -rf build
+fi
 
 echo "MAME source ready at $SRC_DIR"
