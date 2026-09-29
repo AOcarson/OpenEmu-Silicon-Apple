@@ -1,8 +1,134 @@
+diff --git a/src/frontend/mame/ui/mainmenu.cpp b/src/frontend/mame/ui/mainmenu.cpp
+index db1eab2c..05f5f302 100644
+--- a/src/frontend/mame/ui/mainmenu.cpp
++++ b/src/frontend/mame/ui/mainmenu.cpp
+@@ -114,15 +114,40 @@ void menu_main::populate(float &customtop, float &custombottom)
+ 
+ 	if (machine().options().headless())
+ 	{
++		// Everything that works inside a host frontend: no machine selection,
++		// favorites or quit, which the host owns.
++		item_append(_("menu-main", "Input Settings"), 0, (void *)INPUT_OPTIONS);
++
+ 		if (ui().machine_info().has_dips())
+-			item_append(_("Dip Switches"), "", 0, (void *)SETTINGS_DIP_SWITCHES);
++			item_append(_("menu-main", "DIP Switches"), 0, (void *)SETTINGS_DIP_SWITCHES);
+ 		if (ui().machine_info().has_configs())
+-			item_append(_("Machine Configuration"), "", 0, (void *)SETTINGS_DRIVER_CONFIG);
++			item_append(_("menu-main", "Machine Configuration"), 0, (void *)SETTINGS_DRIVER_CONFIG);
++
++		item_append(_("menu-main", "System Information"), 0, (void *)GAME_INFO);
++
++		for (device_image_interface &image : image_interface_enumerator(machine().root_device()))
++		{
++			if (image.user_loadable())
++			{
++				item_append(_("menu-main", "Media Image Information"), 0, (void *)IMAGE_MENU_IMAGE_INFO);
++				item_append(_("menu-main", "File Manager"), 0, (void *)IMAGE_MENU_FILE_MANAGER);
++				break;
++			}
++		}
+ 
+-		item_append(_("Machine Information"), "", 0, (void *)GAME_INFO);
++		if (ui().machine_info().has_bioses())
++			item_append(_("menu-main", "BIOS Selection"), 0, (void *)BIOS_SELECTION);
++
++		if (slot_interface_enumerator(machine().root_device()).first() != nullptr)
++			item_append(_("menu-main", "Slot Devices"), 0, (void *)SLOT_DEVICES);
++
++		item_append(_("menu-main", "Slider Controls"), 0, (void *)SLIDERS);
+ 
+ 		if (machine().options().cheat())
+-			item_append(_("Cheat"), "", 0, (void *)CHEAT);
++			item_append(_("menu-main", "Cheat"), 0, (void *)CHEAT);
++
++		if (machine_phase::RESET <= m_phase && machine().options().plugins() && !mame_machine_manager::instance()->lua()->get_menu().empty())
++			item_append(_("menu-main", "Plugin Options"), 0, (void *)PLUGINS);
+ 
+ 		item_append(menu_item_type::SEPARATOR);
+ 
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..ef2b2b35 100644
+index 89e30052..0eb81ecc 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
-@@ -613,6 +613,75 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -216,6 +216,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
+ 
+ 	bool _isEmpty;
++	bool _luaStarted;
+ }
+ 
+ + (void)initialize
+@@ -239,7 +240,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 
+ 	_manager = mame_machine_manager::instance(*_options.options, *_osd);
+ 	_manager->start_http_server();
+-	_manager->start_luaengine();
++	// The Lua engine (and with it MAME's plugins) starts with the first machine,
++	// so a core can set the plugin options before then. See -_startLuaEngine.
+ 
+ 	// arbitrary size
+ 	_maxBufferSize = NSMakeSize(2048, 2048);
+@@ -443,6 +445,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	}
+ }
+ 
++/*! Starts MAME's Lua engine once per process, which also starts any plugins
++ *  enabled through the "plugins" and "plugin" options at that moment. */
++- (void)_startLuaEngine
++{
++	if (_luaStarted)
++	{
++		return;
++	}
++	_luaStarted = true;
++
++	try
++	{
++		_manager->start_luaengine();
++	}
++	catch (emu_fatalerror &ex)
++	{
++		// Typically an unknown name in the "plugin" option. Carry on without
++		// the requested plugins rather than failing to start the machine.
++		os_log_error(OE_LOG, "could not start Lua plugins: %{public}s", ex.what());
++		_options.options->set_value(OPTION_PLUGIN, "", OPTION_PRIORITY_MAXIMUM);
++		_options.options->set_value(OPTION_NO_PLUGIN, "", OPTION_PRIORITY_MAXIMUM);
++		_manager->start_luaengine();
++	}
++}
++
+ - (BOOL)_initializeGame:(NSError **)error
+ {
+ 	[self _freeMachine];
+@@ -465,6 +492,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 		valid.check_shared_source(*_gameDriver);
+ 	}
+ 
++	[self _startLuaEngine];
++
+ 	_config = new machine_config(*_gameDriver, *_options.options);
+ 	_machine = new running_machine(*_config, *_manager);
+ 	_manager->set_machine(_machine);
+@@ -599,6 +628,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	[self _applyCheats];
+ 	_machine->headless_run();
+ 
++	// A hard reset (e.g. "Reset System" after changing slot devices in MAME's
++	// menu) or an exit request ends the running machine. Start a new one with
++	// the current options, as MAME's own frontend loop would.
++	if (_machine->hard_reset_pending() || _machine->exit_pending())
++	{
++		if (![self _initializeGame:nil])
++		{
++			return NO;
++		}
++	}
++
+ 	return YES;
+ }
+ 
+@@ -613,6 +653,75 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _initializeGame:nil];
  }
  
@@ -78,7 +204,7 @@ index 89e30052..ef2b2b35 100644
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -1110,6 +1179,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -1110,6 +1219,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  

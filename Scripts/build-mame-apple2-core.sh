@@ -85,6 +85,14 @@ xcodebuild \
 
 PLUGIN="$DD/Build/Products/Release/MAMEApple2.oecoreplugin"
 
+# MAME's Lua plugin bootstrap (boot.lua) and stock plugins, matching this MAME
+# version, go where the core looks for plugins. Your own plugin folders there
+# are left alone; stock ones are updated.
+PLUGINS_DEST="$HOME/Library/Application Support/OpenEmu/MAMEApple2/plugins"
+mkdir -p "$PLUGINS_DEST"
+rsync -a "$CORE_DIR/deps/mame/plugins/" "$PLUGINS_DEST/"
+echo "MAME Lua plugins installed in: $PLUGINS_DEST"
+
 echo ""
 echo "Built: $PLUGIN"
 file "$PLUGIN/Contents/MacOS/MAMEApple2"

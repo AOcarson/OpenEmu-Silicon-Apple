@@ -27,10 +27,15 @@ MAME revision from `MAME/deps-mame-revision.txt` into `MAMEApple2/deps/mame`
 and applies, in order:
 
 1. `MAME/patches/mame-headless-clang21-apple.patch` (shared with Arcade)
-2. `MAMEApple2/patches/mame-headless-media-options.patch` — adds
+2. `MAMEApple2/patches/mame-headless-apple2.patch` — adds
    `-[Options setValue:forOptionNamed:error:]` (slot and media options such as
    `gameio` and `flop1`) and `-[OSD loadMediaAtPath:forDevice:error:]` for
-   swapping disks while running.
+   swapping disks while running; starts MAME's Lua engine with the first
+   machine (so plugins can be chosen per game); restarts the machine after a
+   MAME hard reset; and restores most of MAME's main menu in headless mode.
+
+The build script also copies MAME's Lua plugin bootstrap (`boot.lua`) and stock
+plugins into `~/Library/Application Support/OpenEmu/MAMEApple2/plugins`.
 
 ## System ROMs
 
@@ -62,6 +67,18 @@ Every Mac key goes to the Apple //e keyboard. Option or Command are the Apple
 keys (left = Open Apple, right = Solid Apple), which are also joystick buttons
 0 and 1 on real hardware. **F12 is Control-Reset** (bound in Preferences ›
 Controls, so it can be changed).
+
+### MAME's menu
+
+Like standalone MAME, the Apple //e starts with MAME's UI keys off so every
+key reaches the emulated keyboard. **fn-Delete** (Forward Delete) toggles them
+on and off; while on, **Tab** opens MAME's menu (Input Settings, DIP Switches,
+Machine Configuration, File Manager, Slot Devices, BIOS Selection, Slider
+Controls, Cheat, Plugin Options). Changes made there are saved in MAME's own
+config files under `~/Library/Application Support/OpenEmu/MAMEApple2/cfg`.
+Slot changes need **Reset System** from the Slot Devices menu, which restarts
+the machine. Esc with UI keys on asks before "quitting", which just restarts
+the machine; OpenEmu's own controls close the game.
 
 ### Joystick
 
@@ -99,6 +116,25 @@ at boot — the equivalent of extra MAME command-line switches. For example:
 
 Slot options are applied before media options, and `MAMEOptions` are applied
 after the menu settings, so they win.
+
+### MAME Lua plugins
+
+Put a plugin folder (with its `plugin.json` and `init.lua`) in
+`~/Library/Application Support/OpenEmu/MAMEApple2/plugins/`, next to MAME's
+own plugins, and list it in the game's settings file:
+
+```xml
+<key>MAMEPlugins</key>
+<array>
+    <string>myfix</string>   <!-- the plugin's folder name -->
+</array>
+```
+
+Plugins start when the game is opened, so changes apply the next time you
+open it. A plugin name that isn't installed is skipped (and logged) rather
+than stopping the game. Note these run on MAME 0.250's Lua API: a plugin
+written for a much newer MAME may need small changes (for example
+`emu.register_frame_done` instead of `emu.add_machine_frame_notifier`).
 
 ### Multi-disk games
 

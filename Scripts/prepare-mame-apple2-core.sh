@@ -20,7 +20,7 @@ REMOTE="https://github.com/OpenEmu-Silicon/mame.git"
 # Applied in order on top of the pinned revision.
 PATCHES=(
   "$REPO_ROOT/MAME/patches/mame-headless-clang21-apple.patch"
-  "$CORE_DIR/patches/mame-headless-media-options.patch"
+  "$CORE_DIR/patches/mame-headless-apple2.patch"
 )
 
 mkdir -p "$DEPS_DIR"

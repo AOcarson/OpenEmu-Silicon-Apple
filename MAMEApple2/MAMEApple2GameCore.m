@@ -50,6 +50,7 @@ static NSString *const Apple2SettingJoystick     = @"JoystickConnected";        
 static NSString *const Apple2SettingArrowKeys    = @"ArrowKeysControlJoystick";   // BOOL, default NO
 static NSString *const Apple2SettingMachine      = @"Machine";                    // MAME driver, default apple2ee
 static NSString *const Apple2SettingMAMEOptions  = @"MAMEOptions";                // { option: value }, applied at boot
+static NSString *const Apple2SettingMAMEPlugins  = @"MAMEPlugins";                // [ plugin folder name, ... ]
 
 // Display-mode preference keys (identify menu entries; never saved by OpenEmu).
 static NSString *const Apple2ModeJoystick  = @"apple2.joystick";
@@ -114,6 +115,10 @@ static const Apple2KeyMapping Apple2KeyMap[] =
     { 0x3D, InputItemID_F4,  "F4" },  { 0x3E, InputItemID_F5,  "F5" },  { 0x3F, InputItemID_F6,  "F6" },
     { 0x40, InputItemID_F7,  "F7" },  { 0x41, InputItemID_F8,  "F8" },  { 0x42, InputItemID_F9,  "F9" },
     { 0x43, InputItemID_F10, "F10" }, { 0x44, InputItemID_F11, "F11" }, { 0x45, InputItemID_F12, "F12 (Reset)" },
+
+    // fn-Delete (Forward Delete) toggles MAME's UI keys on and off, as with
+    // MAME's own Scroll Lock / fn-Delete. While on, Tab opens MAME's menu.
+    { 0x4C, InputItemID_SCRLOCK, "Toggle MAME UI (fn-Delete)" },
 
     { 0x4F, InputItemID_RIGHT, "Right" },
     { 0x50, InputItemID_LEFT,  "Left" },
@@ -422,6 +427,17 @@ static os_log_t OE_CORE_LOG;
     NSMutableArray<NSString *> *rejected = [NSMutableArray array];
     NSError *optionError = nil;
 
+    // Esc with MAME's UI keys on asks before "quitting" (which restarts the
+    // machine here, since OpenEmu owns the window).
+    [opts setValue:@"1" forOptionNamed:@"confirm_quit" error:NULL];
+
+    // Lua plugins. MAME starts them once, with the first machine of this game
+    // session, so changes to the list apply the next time the game is opened.
+    NSString *pluginsDir = [self.supportDirectoryPath stringByAppendingPathComponent:@"plugins"];
+    [opts setValue:self.supportDirectoryPath forOptionNamed:@"homepath" error:NULL];
+    [opts setValue:@"1" forOptionNamed:@"plugins" error:NULL];
+    [opts setValue:[self pluginListInDirectory:pluginsDir] forOptionNamed:@"plugin" error:NULL];
+
     if (![opts setValue:(self.joystickConnected ? Apple2GameIOJoystick : @"") forOptionNamed:Apple2OptionGameIO error:&optionError])
     {
         [rejected addObject:optionError.localizedDescription ?: @"unknown option error"];
@@ -499,6 +515,54 @@ static os_log_t OE_CORE_LOG;
         return NO;
     }
     return YES;
+}
+
+/*! The game's MAMEPlugins setting as MAME's comma-separated "plugin" option,
+ *  keeping only plugins that are actually installed (an unknown name would
+ *  otherwise stop MAME from starting any plugin). */
+- (NSString *)pluginListInDirectory:(NSString *)pluginsDir
+{
+    id requested = _settings[Apple2SettingMAMEPlugins];
+    NSArray *names = nil;
+    if ([requested isKindOfClass:[NSArray class]])
+    {
+        names = requested;
+    }
+    else if ([requested isKindOfClass:[NSString class]])
+    {
+        names = [requested componentsSeparatedByString:@","];
+    }
+
+    NSMutableArray<NSString *> *valid = [NSMutableArray array];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (id item in names)
+    {
+        if (![item isKindOfClass:[NSString class]])
+        {
+            continue;
+        }
+        NSString *name = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (name.length == 0)
+        {
+            continue;
+        }
+        NSString *manifest = [[pluginsDir stringByAppendingPathComponent:name] stringByAppendingPathComponent:@"plugin.json"];
+        if ([fm fileExistsAtPath:manifest])
+        {
+            [valid addObject:name];
+        }
+        else
+        {
+            os_log_error(OE_CORE_LOG, "MAME plugin \"%{public}@\" not found (expected %{public}@)", name, manifest);
+        }
+    }
+
+    if (valid.count > 0 && ![fm fileExistsAtPath:[pluginsDir stringByAppendingPathComponent:@"boot.lua"]])
+    {
+        os_log_error(OE_CORE_LOG, "MAME plugins need boot.lua in %{public}@; run Scripts/build-mame-apple2-core.sh to install it", pluginsDir);
+    }
+
+    return [valid componentsJoinedByString:@","];
 }
 
 - (NSError *)errorForAudit:(AuditResult *)audit
@@ -659,12 +723,14 @@ static NSDictionary *Apple2Group(NSString *name, NSArray *items)
         NSMutableArray *drive1 = [NSMutableArray array];
         NSMutableArray *drive2 = [NSMutableArray array];
         [drive2 addObject:Apple2Choice(@"Drive 2: Empty", Apple2ModeDrive2, @"-1", _drive2Index == Apple2Drive2Empty)];
+        // What MAME actually has mounted; MAME's File Manager can change it.
+        NSString *mounted = [_osd mediaPathForDevice:Apple2OptionDrive1] ?: _drive1Path;
 
         for (NSUInteger i = 0; i < _disks.paths.count; i++)
         {
             NSString *label = _disks.labels[i];
             NSString *value = [NSString stringWithFormat:@"%lu", (unsigned long)i];
-            BOOL inDrive1 = [_drive1Path isEqualToString:_disks.paths[i]];
+            BOOL inDrive1 = [mounted isEqualToString:_disks.paths[i]];
             [drive1 addObject:Apple2Choice([NSString stringWithFormat:@"Drive 1: %@", label], Apple2ModeDrive1, value, inDrive1)];
             [drive2 addObject:Apple2Choice([NSString stringWithFormat:@"Drive 2: %@", label], Apple2ModeDrive2, value, _drive2Index == (NSInteger)i)];
         }
