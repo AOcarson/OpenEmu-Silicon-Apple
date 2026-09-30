@@ -81,9 +81,19 @@ xcodebuild \
   -derivedDataPath "$BUILD_DIR" \
   ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} \
   build
+BUILD_STATUS=$?
 
 APP_PATH="$BUILD_DIR/Build/Products/$CONFIG/OpenEmu.app"
+if [ "$BUILD_STATUS" -ne 0 ]; then
+  echo "" >&2
+  echo "error: the build FAILED (xcodebuild exit $BUILD_STATUS); see the errors above." >&2
+  echo "Any OpenEmu.app already at $APP_PATH is from an earlier build." >&2
+  exit "$BUILD_STATUS"
+fi
 if [ -d "$APP_PATH" ]; then
+  echo ""
+  echo "System plugins in this build:"
+  ls "$APP_PATH/Contents/PlugIns/Systems/" 2>/dev/null | sed 's/^/  /'
   echo ""
   echo "===================="
   echo "Build complete."
