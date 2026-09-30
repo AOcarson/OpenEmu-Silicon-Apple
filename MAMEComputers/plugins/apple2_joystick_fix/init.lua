@@ -44,7 +44,9 @@ local function lower(s)
 end
 
 local function is_apple2(machine)
-    return lower(machine.system.name):match("^apple2") ~= nil
+    -- The Apple //e family only: the IIgs reads its paddles differently.
+    local name = lower(machine.system.name)
+    return name:match("^apple2") ~= nil and name:match("^apple2gs") == nil
 end
 
 local function find_port(machine, suffix)

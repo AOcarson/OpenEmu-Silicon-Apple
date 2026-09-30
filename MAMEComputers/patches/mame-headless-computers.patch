@@ -110,7 +110,7 @@ index e773e669..8f361163 100644
  	virtual bool is_menu_active() override;
  	bool can_paste();
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..671bc27f 100644
+index 89e30052..410e1e1a 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
 @@ -49,6 +49,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
@@ -125,7 +125,29 @@ index 89e30052..671bc27f 100644
  NSString *const MAMEErrorDomain = @"org.openemu.mame.ErrorDomain";
  
  void osd_setup_osd_specific_emu_options(emu_options &opts)
-@@ -216,6 +221,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -156,9 +161,13 @@ public:
+ 	void set_delegate(id <OSDDelegate> delegate)
+ 	{ m_delegate = delegate; }
+ 
++	// shows only the screen with this tag (machines with several screens)
++	bool show_screen(const char *tag);
++
+ protected:
+ 
+ 	void update_dimensions();
++	screen_device *view_screen() const;
+ 
+ 	// internal state
+ 	running_machine *m_machine;
+@@ -176,6 +185,7 @@ protected:
+ 	void *m_buffer;
+ 	osd_dim m_buffer_size;
+ 	osd_dim m_target_size;
++	unsigned m_target_view = ~0U;
+ 
+ 	// delegate
+ 	id <OSDDelegate> m_delegate;
+@@ -216,6 +226,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
  
  	bool _isEmpty;
@@ -133,7 +155,7 @@ index 89e30052..671bc27f 100644
  }
  
  + (void)initialize
-@@ -239,7 +245,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -239,7 +250,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  
  	_manager = mame_machine_manager::instance(*_options.options, *_osd);
  	_manager->start_http_server();
@@ -143,7 +165,7 @@ index 89e30052..671bc27f 100644
  
  	// arbitrary size
  	_maxBufferSize = NSMakeSize(2048, 2048);
-@@ -443,6 +450,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -443,6 +455,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	}
  }
  
@@ -175,7 +197,7 @@ index 89e30052..671bc27f 100644
  - (BOOL)_initializeGame:(NSError **)error
  {
  	[self _freeMachine];
-@@ -465,6 +497,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -465,6 +502,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  		valid.check_shared_source(*_gameDriver);
  	}
  
@@ -184,7 +206,7 @@ index 89e30052..671bc27f 100644
  	_config = new machine_config(*_gameDriver, *_options.options);
  	_machine = new running_machine(*_config, *_manager);
  	_manager->set_machine(_machine);
-@@ -599,6 +633,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -599,6 +638,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _applyCheats];
  	_machine->headless_run();
  
@@ -202,7 +224,7 @@ index 89e30052..671bc27f 100644
  	return YES;
  }
  
-@@ -613,6 +658,98 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -613,6 +663,105 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _initializeGame:nil];
  }
  
@@ -291,6 +313,13 @@ index 89e30052..671bc27f 100644
 +	headless_ui_show_menu(*_machine);
 +}
 +
++- (BOOL)showScreenWithTag:(NSString *)tag
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return NO;
++	return _osd->show_screen(tag.UTF8String);
++}
++
 +- (void)hideMenu
 +{
 +	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
@@ -301,7 +330,89 @@ index 89e30052..671bc27f 100644
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -1110,6 +1247,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -775,18 +924,24 @@ void headless_osd_interface::update_dimensions()
+ 	s32 temp_width, temp_height;
+ 	m_target->compute_minimum_size(temp_width, temp_height);
+ 	osd_dim new_size(temp_width, temp_height);
+-	if (new_size == m_target_size)
++	if (new_size == m_target_size && m_target->view() == m_target_view)
+ 	{
+ 		// nothing has changed
+ 		return;
+ 	}
+ 
+ 	screen_device_enumerator iter(m_machine->root_device());
+-	auto first_screen = iter.first();
++	screen_device *first_screen = view_screen();
++	if (!first_screen)
++	{
++		first_screen = iter.first();
++	}
+ 	if (!first_screen)
+ 	{
+ 		return;
+ 	}
++	bool const single_screen_view = view_screen() != nullptr;
++	m_target_view = m_target->view();
+ 
+ #if 0
+ 	{
+@@ -825,7 +980,7 @@ void headless_osd_interface::update_dimensions()
+ 	// for multiple screens, use the full dimensions
+ 	std::pair<unsigned, unsigned> aspect;
+ 
+-	if (iter.count() > 1 || m_target->current_view().has_art())
++	if ((iter.count() > 1 && !single_screen_view) || m_target->current_view().has_art())
+ 	{
+ 		// for multiple screens or those with artwork, use the full dimensions
+ 		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
+@@ -856,6 +1011,45 @@ void headless_osd_interface::update_dimensions()
+ 			aspect.first, aspect.second)];
+ }
+ 
++// The one screen the current view shows, or nullptr if it shows several.
++screen_device *headless_osd_interface::view_screen() const
++{
++	screen_device *found = nullptr;
++	for (screen_device &screen : screen_device_enumerator(m_machine->root_device()))
++	{
++		if (m_target->current_view().has_visible_screen(screen))
++		{
++			if (found)
++				return nullptr;
++			found = &screen;
++		}
++	}
++	return found;
++}
++
++bool headless_osd_interface::show_screen(const char *tag)
++{
++	if (m_machine == nullptr || m_target == nullptr)
++		return false;
++	screen_device *screen = m_machine->root_device().subdevice<screen_device>(tag);
++	if (screen == nullptr)
++		return false;
++
++	unsigned const original = m_target->view();
++	for (unsigned i = 0; m_target->view_name(i) != nullptr; i++)
++	{
++		m_target->set_view(i);
++		layout_view &view = m_target->current_view();
++		if (view.visible_screen_count() == 1 && view.has_visible_screen(*screen))
++		{
++			update_dimensions();
++			return true;
++		}
++	}
++	m_target->set_view(original);
++	return false;
++}
++
+ void headless_osd_interface::update(bool skip_redraw)
+ {
+ 	// check if the games video mode has changed
+@@ -1110,6 +1304,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  
@@ -361,7 +472,7 @@ index 89e30052..671bc27f 100644
  
  #define PATH_PROPERTY(OPT, SET, GET) \
 diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
-index a8ef9ff6..17a5574c 100644
+index a8ef9ff6..3966099a 100644
 --- a/src/osd/headless/public/headless.h
 +++ b/src/osd/headless/public/headless.h
 @@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
@@ -373,7 +484,7 @@ index a8ef9ff6..17a5574c 100644
  };
  
  @class OSD, AuditResult, AuditRecord, Device;
-@@ -121,6 +123,36 @@ OE_EXPORTED_CLASS
+@@ -121,6 +123,44 @@ OE_EXPORTED_CLASS
  - (void)scheduleHardReset;
  - (void)setBuffer:(void *)buffer size:(NSSize)size;
  
@@ -406,6 +517,14 @@ index a8ef9ff6..17a5574c 100644
 +
 +/*! Closes any open MAME menu. Emulation thread only. */
 +- (void)hideMenu;
++
++#pragma mark - screens (running machine)
++
++/*! On a machine with several screens (the C128's 40- and 80-column
++ *  outputs), shows only the screen with this device tag, e.g. "screen80".
++ *  Returns NO if there is no such screen or no view that shows it alone.
++ *  Emulation thread only. */
++- (BOOL)showScreenWithTag:(NSString *)tag;
 +
  @end
  

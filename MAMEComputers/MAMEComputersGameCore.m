@@ -29,17 +29,22 @@
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenGL/gl.h>
 #import <os/log.h>
+#import <os/lock.h>
 
 #pragma mark - Systems
 
 typedef NS_ENUM(NSInteger, MCSystem)
 {
     MCSystemApple2,
+    MCSystemApple2GS,
     MCSystemC64,
+    MCSystemC128,
 };
 
-static NSString *const MCSystemIdentifierApple2 = @"openemu.system.apple2";
-static NSString *const MCSystemIdentifierC64    = @"openemu.system.c64";
+static NSString *const MCSystemIdentifierApple2   = @"openemu.system.apple2";
+static NSString *const MCSystemIdentifierApple2GS = @"openemu.system.apple2gs";
+static NSString *const MCSystemIdentifierC64      = @"openemu.system.c64";
+static NSString *const MCSystemIdentifierC128     = @"openemu.system.c128";
 
 #pragma mark - Settings
 
@@ -48,9 +53,10 @@ static NSString *const MCSystemIdentifierC64    = @"openemu.system.c64";
 // by hand.
 static NSString *const MCSettingMachine          = @"Machine";                   // MAME driver
 static NSString *const MCSettingArrowKeys        = @"ArrowKeysControlJoystick";  // BOOL, default NO
-static NSString *const MCSettingJoystick         = @"JoystickConnected";         // Apple II: BOOL, default YES
-static NSString *const MCSettingJoystickPort     = @"JoystickPort";              // C64: 1 or 2, default 2
-static NSString *const MCSettingAutostart        = @"Autostart";                 // C64: BOOL, default YES
+static NSString *const MCSettingJoystick         = @"JoystickConnected";         // Apple II/IIgs: BOOL, default YES
+static NSString *const MCSettingJoystickPort     = @"JoystickPort";              // C64/C128: 1 or 2, default 2
+static NSString *const MCSettingAutostart        = @"Autostart";                 // C64/C128: BOOL, default YES
+static NSString *const MCSettingScreen           = @"Screen";                    // C128: "40" or "80", default "40"
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
 static NSString *const MCSettingDisabledPlugins  = @"DisabledMAMEPlugins";       // [ plugin folder name ], removed
@@ -71,6 +77,7 @@ static NSString *const MCModeJoystickFix  = @"mc.joystickfix";
 static NSString *const MCModeJoystickPort = @"mc.joystickport";
 static NSString *const MCModeAutostart    = @"mc.autostart";
 static NSString *const MCModeMAMEMenu     = @"mc.mamemenu";
+static NSString *const MCModeScreen       = @"mc.screen";
 
 enum { MCMaxPlayers = 2 };
 enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
@@ -238,6 +245,126 @@ static const MCKeyMapping C64KeyMap[] =
     KEY(0xE6, LALT,   "Commodore (Option)"),
 };
 
+// Apple IIgs: MAME's ADB keyboard is a PC layout too. Command is Open Apple
+// and Option is Option, as on the IIgs's own (ADB) keyboard; F12 is RESET.
+static const MCKeyMapping Apple2GSKeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x29, ESC,        "Esc"),
+    KEY(0x2A, BACKSPACE,  "Delete"),
+    KEY(0x2B, TAB,        "Tab"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "-"),
+    KEY(0x2E, EQUALS,     "="),
+    KEY(0x2F, OPENBRACE,  "["),
+    KEY(0x30, CLOSEBRACE, "]"),
+    KEY(0x31, BACKSLASH,  "\\"),
+    KEY(0x33, COLON,      ";"),
+    KEY(0x34, QUOTE,      "'"),
+    KEY(0x35, TILDE,      "`"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    KEY(0x39, CAPSLOCK,   "Caps Lock"),
+    KEY(0x45, F12,        "RESET (F12)"),
+
+    MC_UI_TOGGLE,
+
+    KEY(0x4F, RIGHT, "Right"),
+    KEY(0x50, LEFT,  "Left"),
+    KEY(0x51, DOWN,  "Down"),
+    KEY(0x52, UP,    "Up"),
+
+    KEY(0x53, NUMLOCK,    "Keypad Clear"),
+    KEY(0x54, SLASH_PAD,  "Keypad /"),
+    KEY(0x55, ASTERISK,   "Keypad *"),
+    KEY(0x56, MINUS_PAD,  "Keypad -"),
+    KEY(0x57, PLUS_PAD,   "Keypad +"),
+    KEY(0x58, ENTER_PAD,  "Keypad Enter"),
+    KEY(0x59, 1_PAD, "Keypad 1"), KEY(0x5A, 2_PAD, "Keypad 2"), KEY(0x5B, 3_PAD, "Keypad 3"),
+    KEY(0x5C, 4_PAD, "Keypad 4"), KEY(0x5D, 5_PAD, "Keypad 5"), KEY(0x5E, 6_PAD, "Keypad 6"),
+    KEY(0x5F, 7_PAD, "Keypad 7"), KEY(0x60, 8_PAD, "Keypad 8"), KEY(0x61, 9_PAD, "Keypad 9"),
+    KEY(0x62, 0_PAD, "Keypad 0"), KEY(0x63, DEL_PAD, "Keypad ."),
+    KEY(0x67, EQUALS_PAD, "Keypad ="),
+
+    KEY(0xE0, LCONTROL, "Control"),
+    KEY(0xE1, LSHIFT,   "Left Shift"),
+    KEY(0xE2, RALT,     "Option"),
+    KEY(0xE3, LALT,     "Open Apple (Command)"),
+    KEY(0xE4, LCONTROL, "Control"),
+    KEY(0xE5, RSHIFT,   "Right Shift"),
+    KEY(0xE6, RALT,     "Option"),
+    KEY(0xE7, LALT,     "Open Apple (Command)"),
+};
+
+// Commodore 128: the C64 layout plus the C128's own keys. The C128 has real
+// cursor keys (they work in C128 mode), a keypad, and ESC, TAB, ALT, HELP,
+// NO SCROLL and 40/80 DISPLAY, which MAME puts on F5-F12.
+static const MCKeyMapping C128KeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x29, HOME,       "RUN/STOP (Esc)"),
+    KEY(0x2A, BACKSPACE,  "INST/DEL (Delete)"),
+    KEY(0x2B, F6,         "TAB (Tab)"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "+ (-)"),
+    KEY(0x2E, EQUALS,     "- (=)"),
+    KEY(0x2F, OPENBRACE,  "@ ([)"),
+    KEY(0x30, CLOSEBRACE, "* (])"),
+    KEY(0x31, BACKSLASH,  "= (\\)"),
+    KEY(0x32, BACKSLASH2, "Pound (Non-US #)"),
+    KEY(0x33, COLON,      ": (;)"),
+    KEY(0x34, QUOTE,      "; (')"),
+    KEY(0x35, TILDE,      "Left Arrow (`)"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    KEY(0x39, CAPSLOCK,   "SHIFT LOCK (Caps Lock)"),
+
+    KEY   (0x3A, F1,         "F1"),
+    KEYMOD(0x3B, F1, LSHIFT, "F2"),
+    KEY   (0x3C, F2,         "F3"),
+    KEYMOD(0x3D, F2, LSHIFT, "F4"),
+    KEY   (0x3E, F3,         "F5"),
+    KEYMOD(0x3F, F3, LSHIFT, "F6"),
+    KEY   (0x40, F4,         "F7"),
+    KEYMOD(0x41, F4, LSHIFT, "F8"),
+
+    KEY(0x43, PRTSCR,     "RESTORE (F10)"),
+    KEY(0x44, INSERT,     "CLR/HOME (F11)"),
+    KEY(0x45, DEL,        "Up Arrow (F12)"),
+    KEY(0x4A, F5,         "ESC (Home)"),
+    KEY(0x4B, F11,        "40/80 DISPLAY (Page Up)"),
+    MC_UI_TOGGLE,
+    KEY(0x4D, F9,         "HELP (End)"),
+    KEY(0x4E, F12,        "NO SCROLL (Page Down)"),
+
+    KEY(0x4F, RIGHT, "Cursor Right"),
+    KEY(0x50, LEFT,  "Cursor Left"),
+    KEY(0x51, DOWN,  "Cursor Down"),
+    KEY(0x52, UP,    "Cursor Up"),
+
+    KEY(0x56, MINUS_PAD,  "Keypad -"),
+    KEY(0x57, PLUS_PAD,   "Keypad +"),
+    KEY(0x58, ENTER_PAD,  "Keypad Enter"),
+    KEY(0x59, 1_PAD, "Keypad 1"), KEY(0x5A, 2_PAD, "Keypad 2"), KEY(0x5B, 3_PAD, "Keypad 3"),
+    KEY(0x5C, 4_PAD, "Keypad 4"), KEY(0x5D, 5_PAD, "Keypad 5"), KEY(0x5E, 6_PAD, "Keypad 6"),
+    KEY(0x5F, 7_PAD, "Keypad 7"), KEY(0x60, 8_PAD, "Keypad 8"), KEY(0x61, 9_PAD, "Keypad 9"),
+    KEY(0x62, 0_PAD, "Keypad 0"), KEY(0x63, DEL_PAD, "Keypad ."),
+
+    // Control is CTRL, left Option the Commodore key, right Option ALT.
+    KEY(0xE0, TAB,    "CTRL (Control)"),
+    KEY(0xE1, LSHIFT, "Left Shift"),
+    KEY(0xE2, LALT,   "Commodore (Option)"),
+    KEY(0xE4, TAB,    "CTRL (Control)"),
+    KEY(0xE5, RSHIFT, "Right Shift"),
+    KEY(0xE6, F7,     "ALT (Right Option)"),
+};
+
 // While one of MAME's menus is open the keyboard types PC keys, so the menu
 // works the same on every machine: arrows move, Return selects, Esc goes
 // back, Tab closes, Delete clears an input assignment.
@@ -300,6 +427,10 @@ enum
 // Up, Down, Left, Right.
 enum { MCDirUp, MCDirDown, MCDirLeft, MCDirRight, MCDirCount };
 
+// Relative mouse movement is latched once per frame (see -latchMouse) so every
+// read within a frame sees the same delta, as MAME expects of an OSD.
+static const int32_t MCRelativePerPixel = 512;  // MAME's INPUT_RELATIVE_PER_PIXEL
+
 static int32_t mc_get_state(void *device_internal, void *item_internal)
 {
     return *(int32_t *)item_internal;
@@ -331,7 +462,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
 #pragma mark - Core
 
-@interface MAMEComputersGameCore () <OEApple2SystemResponderClient, OEC64SystemResponderClient>
+@interface MAMEComputersGameCore () <OEApple2SystemResponderClient, OEApple2GSSystemResponderClient,
+                                     OEC64SystemResponderClient, OEC128SystemResponderClient>
 {
     MCSystem _system;
 
@@ -353,6 +485,17 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     BOOL _menuMode;                  // keyboard is typing PC keys for the menu
     volatile BOOL _menuToggleRequested;
     volatile BOOL _menuOpenRequested;
+
+    // Apple IIgs mouse: OpenEmu reports pointer positions; they are turned
+    // into movement, accumulated between frames and latched for MAME.
+    os_unfair_lock _mouseLock;
+    double  _mouseAccum[2];      // screen pixels since the last latch
+    int32_t _mouseDelta[2];      // this frame's movement, MAME units
+    int32_t _mouseButtons[2];
+    BOOL    _mouseHasLast;
+    OEIntPoint _mouseLast;
+
+    BOOL _screenPending;         // C128: apply the Screen setting once running
 
     uint32_t  *_buffer;
     OEIntSize  _bufferSize;
@@ -412,17 +555,32 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
 #pragma mark - System profile
 
-- (BOOL)isC64 { return _system == MCSystemC64; }
+- (BOOL)isCommodore { return _system == MCSystemC64 || _system == MCSystemC128; }
+- (BOOL)isC128      { return _system == MCSystemC128; }
+- (BOOL)isApple2GS  { return _system == MCSystemApple2GS; }
 
 - (NSString *)systemFolderName
 {
-    return self.isC64 ? @"Commodore 64" : @"Apple IIe";
+    switch (_system)
+    {
+        case MCSystemApple2GS: return @"Apple IIgs";
+        case MCSystemC64:      return @"Commodore 64";
+        case MCSystemC128:     return @"Commodore 128";
+        default:               return @"Apple IIe";
+    }
 }
 
 - (NSString *)defaultMachine
 {
-    // PAL by default for the C64, as in VICE: most C64 games are European.
-    return self.isC64 ? @"c64p" : @"apple2ee";
+    // PAL by default for the Commodores, as in VICE: most of their games are
+    // European.
+    switch (_system)
+    {
+        case MCSystemApple2GS: return @"apple2gs";
+        case MCSystemC64:      return @"c64p";
+        case MCSystemC128:     return @"c128p";
+        default:               return @"apple2ee";
+    }
 }
 
 - (const MCKeyMapping *)keyMap:(size_t *)count
@@ -437,40 +595,89 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
 - (const MCKeyMapping *)machineKeyMap:(size_t *)count
 {
-    if (self.isC64)
+#define MC_MAP(m) do { *count = sizeof(m) / sizeof(m[0]); return m; } while (0)
+    switch (_system)
     {
-        *count = sizeof(C64KeyMap) / sizeof(C64KeyMap[0]);
-        return C64KeyMap;
+        case MCSystemApple2GS: MC_MAP(Apple2GSKeyMap);
+        case MCSystemC64:      MC_MAP(C64KeyMap);
+        case MCSystemC128:     MC_MAP(C128KeyMap);
+        default:               MC_MAP(Apple2KeyMap);
     }
-    *count = sizeof(Apple2KeyMap) / sizeof(Apple2KeyMap[0]);
-    return Apple2KeyMap;
+#undef MC_MAP
 }
 
 - (NSSet<NSString *> *)diskExtensions
 {
     // Keep in sync with OEFileSuffixes in the system plugins.
-    return self.isC64
-        ? [NSSet setWithObjects:@"d64", @"g64", @"x64", @"d71", @"d81", nil]
-        : [NSSet setWithObjects:@"dsk", @"do", @"po", @"nib", @"woz", nil];
+    switch (_system)
+    {
+        case MCSystemApple2GS:
+            // 3.5" disks, plus 5.25" ones for a IIgs game on 5.25" disks
+            return [NSSet setWithObjects:@"2mg", @"po", @"woz", @"dc", @"dc42", @"dsk", @"do", @"nib", nil];
+        case MCSystemC64:
+        case MCSystemC128:
+            return [NSSet setWithObjects:@"d64", @"g64", @"x64", @"d71", @"d81", nil];
+        default:
+            return [NSSet setWithObjects:@"dsk", @"do", @"po", @"nib", @"woz", nil];
+    }
+}
+
+/*! YES for a 5.25" Apple disk image, NO for a 3.5" one. */
+static BOOL MCIsFiveInchAppleDisk(NSString *path)
+{
+    NSString *ext = path.pathExtension.lowercaseString;
+    if ([ext isEqualToString:@"dsk"] || [ext isEqualToString:@"do"] || [ext isEqualToString:@"nib"])
+        return YES;
+
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    NSData *head = [fh readDataOfLength:32];
+    [fh closeFile];
+    unsigned long long size = [[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize];
+
+    if ([ext isEqualToString:@"po"])
+        return size <= 143360;
+    if ([ext isEqualToString:@"woz"] && head.length >= 22)
+    {
+        const uint8_t *b = head.bytes;
+        BOOL info = memcmp(b + 12, "INFO", 4) == 0;
+        return !(info && b[21] == 2);   // disk type 2 is 3.5"
+    }
+    return NO; // .2mg, DiskCopy: 3.5"
 }
 
 /*! MAME image devices for the disk drives, drive 1 first. */
 - (NSArray<NSString *> *)driveDevices
 {
-    return self.isC64 ? @[ @"flop" ] : @[ @"flop1", @"flop2" ];
+    switch (_system)
+    {
+        case MCSystemApple2GS:
+            // Two 5.25" drives (flop1, flop2) and two 3.5" drives (flop3,
+            // flop4); a disk set uses the pair that fits the launched disk.
+            return MCIsFiveInchAppleDisk(_launchPath) ? @[ @"flop1", @"flop2" ] : @[ @"flop3", @"flop4" ];
+        case MCSystemC64:
+        case MCSystemC128:
+            return @[ @"flop" ];
+        default:
+            return @[ @"flop1", @"flop2" ];
+    }
 }
 
 /*! MAME options that put `path` in the right device, slot options first. */
 - (NSArray<NSArray<NSString *> *> *)mediaOptionsForPath:(NSString *)path
 {
     NSString *ext = path.pathExtension.lowercaseString;
-    if (!self.isC64)
+    if (self.isApple2GS)
+    {
+        return @[ @[ MCIsFiveInchAppleDisk(path) ? @"flop1" : @"flop3", path ] ];
+    }
+    if (!self.isCommodore)
     {
         return @[ @[ self.driveDevices[0], path ] ];
     }
 
-    // 1541 for .d64/.g64/.x64; the 1571 and 1581 drives read their own formats.
-    if ([ext isEqualToString:@"d71"])
+    // The C64's 1541 reads .d64/.g64/.x64; .d71 needs a 1571 (the C128's own
+    // drive) and .d81 a 1581.
+    if ([ext isEqualToString:@"d71"] && !self.isC128)
         return @[ @[ @"iec8", @"c1571" ], @[ @"flop", path ] ];
     if ([ext isEqualToString:@"d81"])
         return @[ @[ @"iec8", @"c1581" ], @[ @"flop", path ] ];
@@ -494,6 +701,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 - (BOOL)joystickConnected    { return [self boolSetting:MCSettingJoystick fallback:YES]; }
 - (BOOL)arrowKeysAreJoystick { return [self boolSetting:MCSettingArrowKeys fallback:NO]; }
 - (BOOL)autostart            { return [self boolSetting:MCSettingAutostart fallback:YES]; }
+
+- (BOOL)showsEightyColumns
+{
+    id value = _settings[MCSettingScreen];
+    return [value isKindOfClass:[NSString class]] && [value isEqualToString:@"80"];
+}
 
 - (NSInteger)joystickPort
 {
@@ -519,7 +732,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     // Apple IIe settings from before the C64 was added sit directly in Game Settings.
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *legacy = [root stringByAppendingPathComponent:file];
-    if (!self.isC64 && ![fm fileExistsAtPath:_settingsPath] && [fm fileExistsAtPath:legacy])
+    if (_system == MCSystemApple2 && ![fm fileExistsAtPath:_settingsPath] && [fm fileExistsAtPath:legacy])
     {
         [fm createDirectoryAtPath:[_settingsPath stringByDeletingLastPathComponent]
       withIntermediateDirectories:YES attributes:nil error:NULL];
@@ -567,8 +780,18 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         }
     }
 
-    // A new machine starts with its menus closed.
+    // A new machine starts with its menus closed, and on its default screen.
     _menuMode = NO;
+    _screenPending = self.isC128;
+
+    if (self.isApple2GS)
+    {
+        InputDevice *mouse = [_osd.mouse addDeviceNamed:@"OpenEmu Mouse"];
+        [mouse addItemNamed:@"X Axis" id:InputItemID_XAXIS getter:mc_get_state context:&_mouseDelta[0]];
+        [mouse addItemNamed:@"Y Axis" id:InputItemID_YAXIS getter:mc_get_state context:&_mouseDelta[1]];
+        [mouse addItemNamed:@"Left Button"  id:InputItemID_BUTTON1 getter:mc_get_state context:&_mouseButtons[0]];
+        [mouse addItemNamed:@"Right Button" id:InputItemID_BUTTON2 getter:mc_get_state context:&_mouseButtons[1]];
+    }
 
     InputDevice *kb = [_osd.keyboard addDeviceNamed:@"OpenEmu Keyboard"];
     BOOL added[InputItemID_ABSOLUTE_MAXIMUM] = { NO };
@@ -608,7 +831,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         }
     }
 
-    if (self.isC64)
+    if (self.isCommodore)
     {
         [kb addItemNamed:@"OpenEmu: joystick 1 in port 1" id:C64SignalJoystickPort1
                   getter:mc_get_state context:&_keys[C64SignalJoystickPort1]];
@@ -666,7 +889,13 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
 - (BOOL)loadFileAtPath:(NSString *)path error:(NSError **)error
 {
-    _system = [self.systemIdentifier isEqualToString:MCSystemIdentifierC64] ? MCSystemC64 : MCSystemApple2;
+    NSDictionary<NSString *, NSNumber *> *systems = @{
+        MCSystemIdentifierApple2:   @(MCSystemApple2),
+        MCSystemIdentifierApple2GS: @(MCSystemApple2GS),
+        MCSystemIdentifierC64:      @(MCSystemC64),
+        MCSystemIdentifierC128:     @(MCSystemC128),
+    };
+    _system = (MCSystem)(systems[self.systemIdentifier] ?: @(MCSystemApple2)).integerValue;
     _launchPath = path;
     _launchedFromDisk = [self.diskExtensions containsObject:path.pathExtension.lowercaseString];
 
@@ -758,8 +987,14 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     MC_SET(@"1", @"plugins");
     MC_SET(self.pluginOptionValue, @"plugin");
 
+    // The IIgs needs its mouse; MAME only reads mice when asked to.
+    if (self.isApple2GS)
+    {
+        MC_SET(@"1", @"mouse");
+    }
+
     // Slot options come before the media options their cards provide.
-    if (self.isC64)
+    if (self.isCommodore)
     {
         // A joystick in both control ports; the c64_openemu plugin decides
         // which OpenEmu player drives which port.
@@ -808,7 +1043,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         MC_SET(drive2, self.driveDevices[1]);
     }
 
-    if (self.isC64 && _cartridgePath != nil)
+    if (self.isCommodore && _cartridgePath != nil)
     {
         MC_SET(_cartridgePath, @"cart");
     }
@@ -948,7 +1183,7 @@ static NSArray<NSString *> *MCNameList(id value)
 /*! Plugins a system needs to work as intended here. */
 - (NSArray<NSString *> *)requiredPlugins
 {
-    return self.isC64 ? @[ MCPluginC64 ] : @[];
+    return self.isCommodore ? @[ MCPluginC64 ] : @[];
 }
 
 /*! Plugins for every game: Global Settings.plist's MAMEPlugins, or the
@@ -1071,7 +1306,7 @@ static NSArray<NSString *> *MCNameList(id value)
     NSError *error = nil;
     BOOL ok = NO;
 
-    if (self.isC64 && [ext isEqualToString:@"crt"])
+    if (self.isCommodore && [ext isEqualToString:@"crt"])
     {
         // A cartridge is only seen at power-on: plug it in and restart.
         _cartridgePath = path;
@@ -1130,13 +1365,28 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         { @"apple2ee", @"Apple //e (Enhanced)" },
         { @"apple2e",  @"Apple //e (Original)" },
     };
+    static MCMachine apple2gs[] = {
+        { @"apple2gs",   @"Apple IIgs (ROM 03)" },
+        { @"apple2gsr1", @"Apple IIgs (ROM 01)" },
+    };
     static MCMachine c64[] = {
         { @"c64p", @"Commodore 64 (PAL)" },
         { @"c64",  @"Commodore 64 (NTSC)" },
     };
+    static MCMachine c128[] = {
+        { @"c128p", @"Commodore 128 (PAL)" },
+        { @"c128",  @"Commodore 128 (NTSC)" },
+    };
 
-    MCMachine *list = (system == MCSystemC64) ? c64 : apple2;
-    size_t count = (system == MCSystemC64) ? sizeof(c64) / sizeof(c64[0]) : sizeof(apple2) / sizeof(apple2[0]);
+    MCMachine *list = apple2;
+    size_t count = sizeof(apple2) / sizeof(apple2[0]);
+    switch (system)
+    {
+        case MCSystemApple2GS: list = apple2gs; count = sizeof(apple2gs) / sizeof(apple2gs[0]); break;
+        case MCSystemC64:      list = c64;      count = sizeof(c64) / sizeof(c64[0]);           break;
+        case MCSystemC128:     list = c128;     count = sizeof(c128) / sizeof(c128[0]);         break;
+        default: break;
+    }
 
     NSMutableArray<NSValue *> *machines = [NSMutableArray array];
     for (size_t i = 0; i < count; i++)
@@ -1150,7 +1400,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 {
     NSMutableArray *modes = [NSMutableArray array];
 
-    if (self.isC64)
+    if (self.isCommodore)
     {
         NSInteger port = self.joystickPort;
         [modes addObject:MCGroup(@"Joystick Port", @[
@@ -1159,12 +1409,20 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         ])];
         [modes addObject:MCToggle(@"Arrow Keys Control Joystick", MCModeArrowKeys, self.arrowKeysAreJoystick)];
         [modes addObject:MCToggle(@"Autostart (next launch)", MCModeAutostart, self.autostart)];
+        if (self.isC128)
+        {
+            BOOL eighty = self.showsEightyColumns;
+            [modes addObject:MCGroup(@"Screen", @[
+                MCChoice(@"40 Columns", MCModeScreen, @"40", !eighty),
+                MCChoice(@"80 Columns", MCModeScreen, @"80", eighty),
+            ])];
+        }
     }
     else
     {
         [modes addObject:MCToggle(@"Joystick Connected (restarts)", MCModeJoystick, self.joystickConnected)];
         [modes addObject:MCToggle(@"Arrow Keys Control Joystick", MCModeArrowKeys, self.arrowKeysAreJoystick)];
-        if ([self pluginIsInstalled:MCPluginApple2JoystickFix])
+        if (_system == MCSystemApple2 && [self pluginIsInstalled:MCPluginApple2JoystickFix])
         {
             BOOL fixOn = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
             [modes addObject:MCToggle(@"Joystick Timing Fix (next launch)", MCModeJoystickFix, fixOn)];
@@ -1264,6 +1522,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
     }
+    else if ([key isEqualToString:MCModeScreen])
+    {
+        [self setSetting:([value isEqualToString:@"80"] ? @"80" : @"40") forKey:MCSettingScreen];
+        _screenPending = YES;
+    }
     else if ([key isEqualToString:MCModeMAMEMenu])
     {
         _menuOpenRequested = YES;
@@ -1341,6 +1604,15 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
             [_osd showMenu];
     }
     [self syncMenuMode];
+    [self latchMouse];
+
+    if (_screenPending)
+    {
+        // Only possible once the machine is running; MAME's saved view (from
+        // an earlier session) has been restored by then, so this wins.
+        if ([_osd showScreenWithTag:(self.showsEightyColumns ? @"screen80" : @"screen")])
+            _screenPending = NO;
+    }
 
     [_osd execute];
 }
@@ -1402,7 +1674,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         return YES;
     }
     // On the C64 the right Option and Command keys are fire.
-    return self.isC64 && (hid == MCHIDRightAlt || hid == MCHIDRightCmd);
+    return self.isCommodore && (hid == MCHIDRightAlt || hid == MCHIDRightCmd);
 }
 
 - (void)updateKeyItem:(InputItemID)item
@@ -1421,7 +1693,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
 
     // Apple II Control-Reset from the gamepad/controls binding.
-    if (!self.isC64 && _resetHeld && (item == InputItemID_LCONTROL || item == InputItemID_F12))
+    if (!self.isCommodore && _resetHeld && (item == InputItemID_LCONTROL || item == InputItemID_F12))
     {
         down = YES;
     }
@@ -1486,7 +1758,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 
 - (void)updateC64Signals
 {
-    if (!self.isC64)
+    if (!self.isCommodore)
     {
         return;
     }
@@ -1516,7 +1788,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     {
         if (x == 0) x = (CGFloat)_hidDown[MCHIDRight] - (CGFloat)_hidDown[MCHIDLeft];
         if (y == 0) y = (CGFloat)_hidDown[MCHIDDown]  - (CGFloat)_hidDown[MCHIDUp];
-        if (self.isC64)
+        if (self.isCommodore)
         {
             fire = fire || _hidDown[MCHIDRightAlt] || _hidDown[MCHIDRightCmd];
         }
@@ -1662,12 +1934,101 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     [self updateC64Signals];
 }
 
-// The C64 system also offers a mouse; MAME's C64 mouse (1351) isn't wired up here.
-- (oneway void)mouseMovedAtPoint:(OEIntPoint)point {}
-- (oneway void)leftMouseDownAtPoint:(OEIntPoint)point {}
-- (oneway void)leftMouseUp {}
-- (oneway void)rightMouseDownAtPoint:(OEIntPoint)point {}
-- (oneway void)rightMouseUp {}
+// Apple IIgs
+
+- (oneway void)didMoveApple2GSJoystick:(OEApple2GSButton)direction withValue:(CGFloat)value forPlayer:(NSUInteger)player
+{
+    // OEApple2GSButton has the same values as OEApple2Button.
+    [self setDirection:direction value:value forPlayer:player];
+}
+
+- (oneway void)didPushApple2GSButton:(OEApple2GSButton)button forPlayer:(NSUInteger)player
+{
+    [self setApple2Button:(OEApple2Button)button pressed:YES forPlayer:player];
+}
+
+- (oneway void)didReleaseApple2GSButton:(OEApple2GSButton)button forPlayer:(NSUInteger)player
+{
+    [self setApple2Button:(OEApple2Button)button pressed:NO forPlayer:player];
+}
+
+// Commodore 128 (OEC128Button has the same values as OEC64Button)
+
+- (oneway void)didPushC128Button:(OEC128Button)button forPlayer:(NSUInteger)player
+{
+    [self setC64Button:(OEC64Button)button pressed:YES forPlayer:player];
+}
+
+- (oneway void)didReleaseC128Button:(OEC128Button)button forPlayer:(NSUInteger)player
+{
+    [self setC64Button:(OEC64Button)button pressed:NO forPlayer:player];
+}
+
+#pragma mark - Input: mouse
+
+// The IIgs mouse. The C64 and C128 systems send mouse events too, but their
+// mouse (the 1351) isn't wired up here, so only the IIgs uses them.
+
+- (void)movePointerTo:(OEIntPoint)point
+{
+    if (!self.isApple2GS)
+        return;
+
+    os_unfair_lock_lock(&_mouseLock);
+    if (_mouseHasLast && _aspectSize.width > 0 && _aspectSize.height > 0)
+    {
+        // Points are in OpenEmu's aspect-corrected view units; convert the
+        // movement to emulated screen pixels.
+        _mouseAccum[0] += (point.x - _mouseLast.x) * (double)_screenRect.size.width  / _aspectSize.width;
+        _mouseAccum[1] += (point.y - _mouseLast.y) * (double)_screenRect.size.height / _aspectSize.height;
+    }
+    _mouseLast = point;
+    _mouseHasLast = YES;
+    os_unfair_lock_unlock(&_mouseLock);
+}
+
+/*! Called on the emulation thread before each frame. */
+- (void)latchMouse
+{
+    if (!self.isApple2GS)
+        return;
+
+    os_unfair_lock_lock(&_mouseLock);
+    for (int axis = 0; axis < 2; axis++)
+    {
+        _mouseDelta[axis] = (int32_t)(_mouseAccum[axis] * MCRelativePerPixel);
+        _mouseAccum[axis] = 0;
+    }
+    os_unfair_lock_unlock(&_mouseLock);
+}
+
+- (oneway void)mouseMovedAtPoint:(OEIntPoint)point
+{
+    [self movePointerTo:point];
+}
+
+- (oneway void)leftMouseDownAtPoint:(OEIntPoint)point
+{
+    // Also sent while dragging.
+    [self movePointerTo:point];
+    _mouseButtons[0] = 1;
+}
+
+- (oneway void)leftMouseUp
+{
+    _mouseButtons[0] = 0;
+}
+
+- (oneway void)rightMouseDownAtPoint:(OEIntPoint)point
+{
+    [self movePointerTo:point];
+    _mouseButtons[1] = 1;
+}
+
+- (oneway void)rightMouseUp
+{
+    _mouseButtons[1] = 0;
+}
 
 #pragma mark - Save states
 

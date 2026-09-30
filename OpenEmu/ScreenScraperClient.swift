@@ -164,6 +164,8 @@ final class ScreenScraperClient {
         "openemu.system.msx":         113,
         "openemu.system.c64":          66,   // Commodore 64 (was 64 — that's Amiga)
         "openemu.system.apple2":       86,   // Apple II
+        "openemu.system.apple2gs":    217,   // Apple IIGS
+        "openemu.system.c128":         66,   // ScreenScraper lists C128 software under Commodore 64
 
         // Arcade
         "openemu.system.arcade":       75,

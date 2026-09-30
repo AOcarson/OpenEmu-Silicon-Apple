@@ -60,6 +60,40 @@
 			<key>OEGameCoreSupportsRewinding</key>
 			<true/>
 		</dict>
+		<key>openemu.system.apple2gs</key>
+		<dict>
+			<key>OEGameCoreRewindBufferSeconds</key>
+			<integer>10</integer>
+			<key>OEGameCoreRewindInterval</key>
+			<integer>0</integer>
+			<key>OEGameCoreSupportsCheatCode</key>
+			<true/>
+			<key>OEGameCoreSupportsDisplayModeChange</key>
+			<true/>
+			<key>OEGameCoreSupportsFileInsertion</key>
+			<true/>
+			<key>OEGameCoreSupportsMultipleDiscs</key>
+			<true/>
+			<key>OEGameCoreSupportsRewinding</key>
+			<true/>
+		</dict>
+		<key>openemu.system.c128</key>
+		<dict>
+			<key>OEGameCoreRewindBufferSeconds</key>
+			<integer>10</integer>
+			<key>OEGameCoreRewindInterval</key>
+			<integer>0</integer>
+			<key>OEGameCoreSupportsCheatCode</key>
+			<true/>
+			<key>OEGameCoreSupportsDisplayModeChange</key>
+			<true/>
+			<key>OEGameCoreSupportsFileInsertion</key>
+			<true/>
+			<key>OEGameCoreSupportsMultipleDiscs</key>
+			<true/>
+			<key>OEGameCoreSupportsRewinding</key>
+			<true/>
+		</dict>
 	</dict>
 	<key>OEGameCorePlayerCount</key>
 	<string>2</string>
@@ -68,7 +102,9 @@
 	<key>OESystemIdentifiers</key>
 	<array>
 		<string>openemu.system.apple2</string>
+		<string>openemu.system.apple2gs</string>
 		<string>openemu.system.c64</string>
+		<string>openemu.system.c128</string>
 	</array>
 	<key>SUEnableAutomaticChecks</key>
 	<string>0</string>

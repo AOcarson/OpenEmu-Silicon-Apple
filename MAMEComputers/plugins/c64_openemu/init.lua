@@ -1,7 +1,8 @@
 -- license:BSD-3-Clause
 --
--- OpenEmu glue for MAME's Commodore 64 drivers (c64, c64p and relatives).
--- The OpenEmu MAMEComputers core always loads it for Commodore 64 games.
+-- OpenEmu glue for MAME's Commodore 64 and 128 drivers (c64, c64p, c128,
+-- c128p and relatives). The OpenEmu MAMEComputers core always loads it for
+-- Commodore 64 and Commodore 128 games.
 --
 -- 1. Joystick ports. The C64 has two control ports and most games read the
 --    joystick in port 2, some in port 1, and two-player games read both.
@@ -46,8 +47,22 @@ local function lower(s)
     return string.lower(tostring(s or ""))
 end
 
-local function is_c64(machine)
-    return lower(machine.system.name):match("^c64") ~= nil
+-- Where each machine keeps what the autostart needs: its 6502-family CPU,
+-- and the KERNAL keyboard buffer and its count. Both show READY. on the
+-- 40-column screen at $0400.
+local PROFILES = {
+    { pattern = "^c128", cpu = ":u6", keybuf = 0x034a, keybuf_count = 0x00d0 },
+    { pattern = "^c64",  cpu = ":u7", keybuf = 0x0277, keybuf_count = 0x00c6 },
+}
+local profile
+
+local function machine_profile(machine)
+    local name = lower(machine.system.name)
+    for _, p in ipairs(PROFILES) do
+        if name:match(p.pattern) then
+            return p
+        end
+    end
 end
 
 local function pressed(token)
@@ -127,7 +142,7 @@ end
 -------------------------------------------------------------------------------
 
 local function main_space(machine)
-    local cpu = machine.devices[":u7"] or machine.devices[":maincpu"]
+    local cpu = machine.devices[profile.cpu] or machine.devices[":maincpu"]
     return cpu and cpu.spaces["program"]
 end
 
@@ -185,13 +200,11 @@ local function start_autostart(machine)
     emu.print_info("c64_openemu: autostart " .. mode)
 end
 
--- Typing goes straight into the KERNAL's keyboard buffer, as VICE's
--- autostart does, rather than through MAME's natural keyboard: pressing keys
+-- Typing goes straight into the KERNAL's keyboard buffer (see PROFILES), as
+-- VICE's autostart does, rather than through MAME's natural keyboard: pressing keys
 -- through the emulated keyboard matrix can drop or garble characters (the
 -- matrix is shared with the joystick ports).
-local KEYBUF = 0x0277      -- KERNAL keyboard buffer
-local KEYBUF_COUNT = 0x00c6
-local KEYBUF_SIZE = 10
+local KEYBUF_SIZE = 10     -- KERNAL keyboard buffer length (both machines)
 
 local function type_text(text)
     auto.pending = (auto.pending or "") .. text
@@ -204,16 +217,16 @@ local function feed_keyboard(space)
     if not pending or pending == "" then
         return false
     end
-    if space:read_u8(KEYBUF_COUNT) ~= 0 then
+    if space:read_u8(profile.keybuf_count) ~= 0 then
         return true
     end
     local chunk = pending:sub(1, KEYBUF_SIZE)
     for i = 1, #chunk do
         -- Upper case ASCII, digits and punctuation are the same in PETSCII;
         -- "\r" is RETURN.
-        space:write_u8(KEYBUF + i - 1, chunk:byte(i))
+        space:write_u8(profile.keybuf + i - 1, chunk:byte(i))
     end
-    space:write_u8(KEYBUF_COUNT, #chunk)
+    space:write_u8(profile.keybuf_count, #chunk)
     auto.pending = pending:sub(KEYBUF_SIZE + 1)
     return true
 end
@@ -279,6 +292,7 @@ function plugin.startplugin()
     -- once and re-arm on every machine start.
     emu.register_prestart(function()
         active = false
+        profile = nil
         frame = 0
         routed_primary = nil
         fields_by_port = nil
@@ -288,7 +302,8 @@ function plugin.startplugin()
     emu.register_frame(function()
         local machine = manager.machine
         if frame == 0 then
-            active = is_c64(machine)
+            profile = machine_profile(machine)
+            active = profile ~= nil
             if active then
                 fields_by_port = find_joystick_fields(machine)
                 start_autostart(machine)

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2026, OpenEmu Team
+ Copyright (c) 2015, OpenEmu Team
 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
@@ -24,23 +24,70 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <OpenEmuBase/OEGameCore.h>
-#import "OEApple2SystemResponderClient.h"
-#import "OEApple2GSSystemResponderClient.h"
-#import "OEC64SystemResponderClient.h"
+#import "OEC128SystemResponder.h"
 #import "OEC128SystemResponderClient.h"
-#import "osd.h"
 
-/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
- *
- *  One MAME build with the Apple //e, Apple IIgs, Commodore 64 and Commodore
- *  128 drivers serves the matching four OpenEmu systems. Per system, the core picks the MAME
- *  machine, maps the Mac keyboard onto the emulated one, routes the launched
- *  file to the right MAME device, and offers per-game settings (joystick,
- *  machine model, disk drives, arbitrary MAME options and Lua plugins)
- *  through OpenEmu's in-game Display Mode menu. */
-OE_EXPORTED_CLASS
-@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
+@implementation OEC128SystemResponder
+@dynamic client;
+
++ (Protocol *)gameSystemResponderClientProtocol;
+{
+    return @protocol(OEC128SystemResponderClient);
+}
+
+- (void)HIDKeyDown:(OEHIDEvent *)theEvent
+{
+    [super HIDKeyDown:theEvent];
+    [self.client keyDown:theEvent.keycode];
+}
+
+- (void)HIDKeyUp:(OEHIDEvent *)theEvent
+{
+    [super HIDKeyUp:theEvent];
+    [self.client keyUp:theEvent.keycode];
+}
+
+- (void)pressEmulatorKey:(OESystemKey *)aKey
+{
+    OEC128Button button = (OEC128Button)aKey.key;
+    
+    switch(button)
+    {
+        case OEC128SwapJoysticks : [self.client swapJoysticks]; break;
+        default :
+            [self.client didPushC64Button:button forPlayer:aKey.player];
+            break;
+    }
+}
+
+- (void)releaseEmulatorKey:(OESystemKey *)aKey
+{
+    [self.client didReleaseC64Button:(OEC128Button)aKey.key forPlayer:aKey.player];
+}
+
+- (void)mouseMovedAtPoint:(OEIntPoint)aPoint
+{
+    [self.client mouseMovedAtPoint:aPoint];
+}
+
+- (void)mouseDownAtPoint:(OEIntPoint)aPoint
+{
+    [self.client leftMouseDownAtPoint:aPoint];
+}
+
+- (void)mouseUpAtPoint
+{
+    [self.client leftMouseUp];
+}
+
+- (void)rightMouseDownAtPoint:(OEIntPoint)aPoint
+{
+    [self.client rightMouseDownAtPoint:aPoint];
+}
+
+- (void)rightMouseUpAtPoint
+{
+    [self.client rightMouseUp];
+}
 
 @end

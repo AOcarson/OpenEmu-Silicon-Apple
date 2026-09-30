@@ -24,23 +24,35 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <OpenEmuBase/OEGameCore.h>
-#import "OEApple2SystemResponderClient.h"
-#import "OEApple2GSSystemResponderClient.h"
-#import "OEC64SystemResponderClient.h"
-#import "OEC128SystemResponderClient.h"
-#import "osd.h"
+#import "OEC128SystemController.h"
 
-/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
- *
- *  One MAME build with the Apple //e, Apple IIgs, Commodore 64 and Commodore
- *  128 drivers serves the matching four OpenEmu systems. Per system, the core picks the MAME
- *  machine, maps the Mac keyboard onto the emulated one, routes the launched
- *  file to the right MAME device, and offers per-game settings (joystick,
- *  machine model, disk drives, arbitrary MAME options and Lua plugins)
- *  through OpenEmu's in-game Display Mode menu. */
-OE_EXPORTED_CLASS
-@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
+@implementation OEC128SystemController
+
+// The C128 shares every file type with the C64, and most files are C64
+// software. OpenEmu gives a file to the one system that answers "yes"; the
+// C64 answers "maybe" to everything, so the C128 answers "yes" only when the
+// file (or its folder) is named as C128 software - "C128" or "128" as a word,
+// as in TOSEC's "Commodore C128" sets - or is a 1571 double-sided disk.
+// Everything else goes to the C64 without asking.
+- (OEFileSupport)canHandleFile:(__kindof OEFile *)file
+{
+    if ([file.fileExtension.lowercaseString isEqualToString:@"d71"])
+        return OEFileSupportYes;
+
+    static NSRegularExpression *marker;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        marker = [NSRegularExpression regularExpressionWithPattern:@"(^|[^0-9a-z])c?128([^0-9]|$)"
+                                                           options:NSRegularExpressionCaseInsensitive error:nil];
+    });
+
+    NSURL *url = file.fileURL;
+    for (NSString *name in @[ url.lastPathComponent, url.URLByDeletingLastPathComponent.lastPathComponent ])
+    {
+        if ([marker firstMatchInString:name options:0 range:NSMakeRange(0, name.length)] != nil)
+            return OEFileSupportYes;
+    }
+    return OEFileSupportNo;
+}
 
 @end

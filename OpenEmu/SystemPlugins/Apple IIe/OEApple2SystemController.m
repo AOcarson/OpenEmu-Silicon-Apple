@@ -57,10 +57,16 @@ static const NSUInteger OEApple2NibSize          = 232960;
 
     if ([ext isEqualToString:@"woz"])
     {
+        // WOZ images say in their INFO chunk whether they are 5.25" (1) or
+        // 3.5" (2); 3.5" disks belong to the Apple IIgs.
         NSString *magic = [file readASCIIStringInRange:NSMakeRange(0, 4)];
-        if ([magic isEqualToString:@"WOZ1"] || [magic isEqualToString:@"WOZ2"])
+        if (![magic isEqualToString:@"WOZ1"] && ![magic isEqualToString:@"WOZ2"])
+            return OEFileSupportNo;
+        if (![[file readASCIIStringInRange:NSMakeRange(12, 4)] isEqualToString:@"INFO"])
             return OEFileSupportYes;
-        return OEFileSupportNo;
+        NSData *type = [file readDataInRange:NSMakeRange(21, 1)];
+        BOOL threeAndAHalf = type.length == 1 && ((const uint8_t *)type.bytes)[0] == 2;
+        return threeAndAHalf ? OEFileSupportNo : OEFileSupportYes;
     }
 
     return OEFileSupportUncertain;

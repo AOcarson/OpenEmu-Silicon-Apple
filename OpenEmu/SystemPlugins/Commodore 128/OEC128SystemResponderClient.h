@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2026, OpenEmu Team
+ Copyright (c) 2015, OpenEmu Team
 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
@@ -24,23 +24,39 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <OpenEmuBase/OEGameCore.h>
-#import "OEApple2SystemResponderClient.h"
-#import "OEApple2GSSystemResponderClient.h"
-#import "OEC64SystemResponderClient.h"
-#import "OEC128SystemResponderClient.h"
-#import "osd.h"
+#import <Foundation/Foundation.h>
 
-/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
- *
- *  One MAME build with the Apple //e, Apple IIgs, Commodore 64 and Commodore
- *  128 drivers serves the matching four OpenEmu systems. Per system, the core picks the MAME
- *  machine, maps the Mac keyboard onto the emulated one, routes the launched
- *  file to the right MAME device, and offers per-game settings (joystick,
- *  machine model, disk drives, arbitrary MAME options and Lua plugins)
- *  through OpenEmu's in-game Display Mode menu. */
-OE_EXPORTED_CLASS
-@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
+@protocol OESystemResponderClient;
+
+typedef enum
+{
+    OEC128JoystickUp,
+    OEC128JoystickDown,
+    OEC128JoystickLeft,
+    OEC128JoystickRight,
+    OEC128ButtonFire,
+    OEC128ButtonJump,
+    OEC128SwapJoysticks,
+    OEC128MAMEMenu,      // opens or closes MAME's menu (MAMEComputers core)
+    OEC128Extra1,        // spare joystick buttons for binding to keys in
+    OEC128Extra2,        // MAME's Input Settings (Joy n Button 3-8)
+    OEC128Extra3,
+    OEC128Extra4,
+    OEC128Extra5,
+    OEC128Extra6,
+    OEC128ButtonCount
+} OEC128Button;
+
+@protocol OEC128SystemResponderClient <OESystemResponderClient, NSObject>
+- (oneway void)mouseMovedAtPoint:(OEIntPoint)point;
+- (oneway void)leftMouseDownAtPoint:(OEIntPoint)point;
+- (oneway void)leftMouseUp;
+- (oneway void)rightMouseDownAtPoint:(OEIntPoint)point;
+- (oneway void)rightMouseUp;
+- (oneway void)keyDown:(NSUInteger)keyCode;
+- (oneway void)keyUp:(NSUInteger)keyCode;
+- (oneway void)didPushC64Button:(OEC128Button)button forPlayer:(NSUInteger)player;
+- (oneway void)didReleaseC64Button:(OEC128Button)button forPlayer:(NSUInteger)player;
+- (oneway void)swapJoysticks;
 
 @end

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build the home computers core (MAMEComputers.oecoreplugin) from source.
 #
-# Builds a small MAME 0.250 that contains only the Apple //e and Commodore 64
-# drivers (src/mame/apple/apple2e.cpp, src/mame/commodore/c64.cpp and the
-# cards, drives and devices they need), as a headless dylib, then the OpenEmu
-# core plugin around it. The one core serves OpenEmu's Apple IIe and
-# Commodore 64 systems.
+# Builds a small MAME 0.250 that contains only the Apple //e, Apple IIgs,
+# Commodore 64 and Commodore 128 drivers (and the cards, drives and devices
+# they need), as a headless dylib, then the OpenEmu core plugin around it.
+# The one core serves OpenEmu's Apple IIe, Apple IIgs, Commodore 64 and
+# Commodore 128 systems.
 #
 # Usage:
 #   ./Scripts/build-mame-computers-core.sh             # build
@@ -59,7 +59,7 @@ cd "$CORE_DIR/deps/mame"
 make NOWERROR=1 REGENIE=1 macosx_arm64_clang \
   OSD="headless" verbose=1 TARGETOS="macosx" CONFIG="release" \
   TARGET=mame SUBTARGET=mamecomputers \
-  SOURCES=src/mame/apple/apple2e.cpp,src/mame/commodore/c64.cpp \
+  SOURCES=src/mame/apple/apple2e.cpp,src/mame/apple/apple2gs.cpp,src/mame/commodore/c64.cpp,src/mame/commodore/c128.cpp \
   MACOSX_DEPLOYMENT_TARGET=11.0 \
   -j"$(sysctl -n hw.ncpu)"
 

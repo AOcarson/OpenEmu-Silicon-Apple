@@ -1,11 +1,12 @@
-# Home computers core: Apple IIe and Commodore 64 (MAME 0.250)
+# Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128 (MAME 0.250)
 
-`MAMEComputers.oecoreplugin` runs Apple //e and Commodore 64 software in
-OpenEmu using the same headless MAME 0.250 library as the Arcade core, built
-with only the Apple //e and C64 drivers. One core serves two systems:
+`MAMEComputers.oecoreplugin` runs Apple //e, Apple IIgs, Commodore 64 and
+Commodore 128 software in OpenEmu using the same headless MAME 0.250 library
+as the Arcade core, built with only those four drivers. One core serves four
+systems, each with its own sidebar entry:
 
-- **Apple IIe** — the system plugin in `OpenEmu/SystemPlugins/Apple IIe`
-  (added by this fork).
+- **Apple IIe**, **Apple IIgs** and **Commodore 128** — system plugins in
+  `OpenEmu/SystemPlugins/` added by this fork.
 - **Commodore 64** — OpenEmu's existing `OpenEmu/SystemPlugins/Commodore 64`,
   which had no core since the libretro bridge was removed.
 
@@ -58,8 +59,8 @@ Logs: `log show --last 5m --info --predicate 'subsystem == "org.openemu.MAMEComp
 ## System ROMs
 
 Copy these zips, unchanged, from a MAME 0.250-compatible set into
-`~/Library/Application Support/OpenEmu/BIOS`. If something is missing, the
-error message lists exactly which zips MAME could not find.
+`~/Library/Application Support/OpenEmu/BIOS`. If a game won't start, the log
+(see above) lists exactly which zips MAME could not find.
 
 **Apple IIe**
 
@@ -69,6 +70,22 @@ error message lists exactly which zips MAME could not find.
 | `apple2e.zip` | Parent set; also needed for the "Apple //e (Original)" machine. |
 | `a2diskiing.zip` | Disk II controller (slot 6). |
 | `votrax.zip` | Speech chip on the Mockingboard sound card MAME puts in slot 4. |
+
+**Apple IIgs**
+
+| Set | What it is |
+|---|---|
+| `apple2gs.zip` | Apple IIgs ROM 03 (the default machine), keyboard/mouse controller and character ROMs. |
+| `apple2gsr1.zip` | Only for the "Apple IIgs (ROM 01)" machine. |
+
+**Commodore 128**
+
+| Set | What it is |
+|---|---|
+| `c128.zip` | C128 ROMs (NTSC machine). |
+| `c128p.zip` | The PAL machine (the default) looks here; many sets store the same ROMs under both names. |
+| `c1571.zip` | The C128's own 1571 drive; needed even for tapes and cartridges. |
+| `c1581.zip` | Only for `.d81` disks. |
 
 **Commodore 64**
 
@@ -101,6 +118,33 @@ Controls, so it can be changed).
 
 Gamepads map to the Apple II joystick; an analog stick gives proportional
 movement, a d-pad full deflection. Two joysticks are supported.
+
+## Apple IIgs
+
+- Supported images: 3.5" disks as `.2mg`, 800K `.po`, 3.5" `.woz` and
+  DiskCopy 4.2 (`.dc`, `.dc42`). The Apple IIgs library claims only 3.5"
+  disks and the Apple IIe library only 5.25" ones, decided by size and (for
+  `.woz`) the disk type in the file, so importing never asks.
+- 5.25" disks can still be inserted with **Insert Cart/Disk/Tape…**; they go
+  into the IIgs's 5.25" drive.
+- Machines: Apple IIgs (ROM 03, default) and ROM 01. The IIgs has no slot
+  cards by default; add them through MAME's Slot Devices menu or
+  `MAMEOptions`.
+
+### Keyboard and mouse
+
+The Mac keyboard maps straight onto the IIgs's: **Command is Open Apple**,
+**Option is Option**, **F12 is RESET** (Control-F12 is Control-Reset;
+Control-Command-F12 restarts). The keypad works on keyboards that have one.
+
+The Mac pointer drives the IIgs mouse while it is over the game; click is the
+mouse button. OpenEmu only reports where the pointer is, so the IIgs cursor
+follows it rather than being locked to it: if they drift apart, move the
+pointer off the edge of the game and back. Mouse speed can be adjusted in
+MAME's menu (Analog Controls).
+
+The joystick works as on the Apple IIe (Joystick Connected in the Display
+Mode menu; Button 0 and 1 are also Open Apple and Option).
 
 ## Commodore 64
 
@@ -156,7 +200,46 @@ special keys are:
 
 Command is left to the Mac.
 
-## Both systems
+## Commodore 128
+
+Works like the C64 (autostart, joystick ports, Extra buttons, per-game
+settings), with its own machine (C128 PAL by default, or NTSC):
+
+- **Which files go here.** The C128 shares every file type with the C64 and
+  most of those files are C64 software, so imports go to the C64 unless the
+  file or its folder is named as C128 software ("C128" or "128" as a word,
+  e.g. TOSEC's "Commodore C128" folders) or it is a `.d71` disk. Rename a
+  file or its folder before importing to send it to the C128.
+- **Screen.** The C128 has a 40-column (VIC) and an 80-column (VDC) screen;
+  **Screen** in the Display Mode menu shows one or the other (saved per
+  game). The C128 itself chooses where to print at power-on from the 40/80
+  DISPLAY key (Page Up, see below).
+- **Media.** `.d64/.g64/.x64/.d71` in the 1571 drive, `.d81` in a 1581,
+  `.prg/.p00` loaded straight into memory, `.tap` on the datasette, `.crt`
+  cartridges. C64 cartridges switch the C128 into C64 mode by themselves.
+
+### Keyboard
+
+As on the C64 (Esc is RUN/STOP, F10 RESTORE, F11 CLR/HOME, F12 ↑, Option
+the Commodore key, F1–F8 as printed), plus:
+
+| C128 key | Mac key |
+|---|---|
+| Cursor keys (the separate ones above the keyboard) | Arrow keys |
+| TAB | Tab |
+| CTRL | Control |
+| ALT | Right Option |
+| ESC | Home |
+| HELP | End |
+| 40/80 DISPLAY | Page Up |
+| NO SCROLL | Page Down |
+| Keypad | Keypad |
+
+The arrow keys are the C128's own cursor keys, which work in C128 mode.
+Keys a Mac laptop lacks (Home, End, Page Up/Down) can be moved to any key or
+gamepad button in MAME's Input Settings.
+
+## All systems
 
 ### MAME's menu
 
@@ -189,7 +272,7 @@ Games that need keys beyond the joystick (a space bar to start, F1 for
 options, RUN/STOP to pause) can have them on a gamepad:
 
 1. In Preferences › Controls, bind gamepad buttons to **Extra 1–6** (they sit
-   under MAME Menu, for both systems).
+   under MAME Menu, on every system).
 2. In the game, open MAME's menu › Input Settings › Input Assignments (this
    system), pick the key (e.g. "Space"), and press the gamepad button. MAME
    shows it as Joy 1 Button 3–8 (Extra 1 is Button 3).
@@ -214,16 +297,20 @@ Apple IIe:
 - **Machine (restarts)** — Apple //e (Enhanced) or Apple //e (Original).
 - **Drive 1 / Drive 2** — shown for multi-disk games (see below).
 
-Commodore 64:
+Apple IIgs: the same, without the timing fix, and Machine is ROM 03 or ROM 01.
+Drive 1 and 2 are the 3.5" drives (or the 5.25" ones for a 5.25" disk set).
+
+Commodore 64 and 128:
 
 - **Joystick Port** — port 2 or port 1 for joystick 1 (applies at once).
 - **Arrow Keys Control Joystick** — as above; right Option/Command fire.
 - **Autostart (next launch)** — type LOAD/RUN for you (on by default).
-- **Machine (restarts)** — Commodore 64 (PAL) or Commodore 64 (NTSC).
+- **Machine (restarts)** — PAL or NTSC.
+- **Screen** (C128 only) — 40 or 80 columns.
 - **Disk** — shown for multi-disk games.
 
 The settings live in
-`~/Library/Application Support/OpenEmu/MAMEComputers/Game Settings/<Apple IIe or Commodore 64>/<game>.plist`.
+`~/Library/Application Support/OpenEmu/MAMEComputers/Game Settings/<system>/<game>.plist`.
 Besides the keys the menu writes (`JoystickConnected`, `ArrowKeysControlJoystick`,
 `Machine`, `JoystickPort`, `Autostart`), you can add a `MAMEOptions`
 dictionary of any MAME option to apply at boot — the equivalent of extra MAME
@@ -259,20 +346,20 @@ Plugins live in `~/Library/Application Support/OpenEmu/MAMEComputers/plugins/`
 script installs MAME 0.250's own plugins there, plus the ones kept in this
 repo's `MAMEComputers/plugins/`: `apple2_joystick_fix` and `c64_openemu`.
 
-**Joystick timing fix.** `apple2_joystick_fix` is on for every game by
-default. When the joystick is pushed fully right or down (value 255), it
+**Joystick timing fix.** `apple2_joystick_fix` is on for every Apple IIe
+game by default (it leaves the IIgs alone). When the joystick is pushed fully right or down (value 255), it
 stretches the paddle timer to 287, as AppleWin and KEGS do, so games whose
 timing loops never see 255 in MAME (Boulder Dash, for one) register full
 deflection. If it upsets a game, turn **Joystick Timing Fix** off for that
 game in the Display Mode menu; it takes effect the next time the game is
 opened.
 
-**C64 glue.** `c64_openemu` routes the joysticks to the C64 control ports and
-does the autostart typing described above. The core always loads it for C64
-games (and it does nothing on other machines).
+**Commodore glue.** `c64_openemu` routes the joysticks to the control ports
+and does the autostart typing described above, on the C64 and the C128. The
+core always loads it for their games (and it does nothing on other machines).
 
 **Choosing plugins.** Every game gets the default list, which is the joystick
-fix (it only acts on Apple II machines) unless `Global Settings.plist` in the core's support folder has its own
+fix (it only acts on the Apple IIe) unless `Global Settings.plist` in the core's support folder has its own
 `MAMEPlugins` array (an empty array turns plugins off everywhere). A game's
 settings file can then add and remove plugins:
 
