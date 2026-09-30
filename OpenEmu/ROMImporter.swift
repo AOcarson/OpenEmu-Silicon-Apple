@@ -23,6 +23,8 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import Cocoa
+import OpenEmuKit
+import OpenEmuSystem
 
 extension Notification.Name {
     static let ROMImporterDidStart  = NSNotification.Name("OEROMImporterDidStart")
