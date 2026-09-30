@@ -55,14 +55,14 @@
     {
         case OEC128SwapJoysticks : [self.client swapJoysticks]; break;
         default :
-            [self.client didPushC64Button:button forPlayer:aKey.player];
+            [self.client didPushC128Button:button forPlayer:aKey.player];
             break;
     }
 }
 
 - (void)releaseEmulatorKey:(OESystemKey *)aKey
 {
-    [self.client didReleaseC64Button:(OEC128Button)aKey.key forPlayer:aKey.player];
+    [self.client didReleaseC128Button:(OEC128Button)aKey.key forPlayer:aKey.player];
 }
 
 - (void)mouseMovedAtPoint:(OEIntPoint)aPoint

@@ -638,7 +638,7 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
         return size <= 143360;
     if ([ext isEqualToString:@"woz"] && head.length >= 22)
     {
-        const uint8_t *b = head.bytes;
+        const uint8_t *b = (const uint8_t *)head.bytes;
         BOOL info = memcmp(b + 12, "INFO", 4) == 0;
         return !(info && b[21] == 2);   // disk type 2 is 3.5"
     }

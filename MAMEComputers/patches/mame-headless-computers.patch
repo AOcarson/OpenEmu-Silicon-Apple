@@ -110,7 +110,7 @@ index e773e669..8f361163 100644
  	virtual bool is_menu_active() override;
  	bool can_paste();
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..410e1e1a 100644
+index 89e30052..5597eae3 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
 @@ -49,6 +49,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
@@ -330,34 +330,49 @@ index 89e30052..410e1e1a 100644
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -775,18 +924,24 @@ void headless_osd_interface::update_dimensions()
+@@ -775,18 +924,32 @@ void headless_osd_interface::update_dimensions()
  	s32 temp_width, temp_height;
  	m_target->compute_minimum_size(temp_width, temp_height);
  	osd_dim new_size(temp_width, temp_height);
 -	if (new_size == m_target_size)
-+	if (new_size == m_target_size && m_target->view() == m_target_view)
++
++	// The machine runs one frame per frame of its primary (first) screen, so
++	// that screen sets the frame rate, whichever screen the view shows. Its
++	// rate can change as the emulated software reprograms its video chip.
++	screen_device_enumerator iter(m_machine->root_device());
++	screen_device *primary_screen = iter.first();
++	if (!primary_screen)
++	{
++		return;
++	}
++	double new_fps = ATTOSECONDS_TO_HZ(primary_screen->refresh_attoseconds());
++
++	if (new_size == m_target_size && m_target->view() == m_target_view && new_fps == m_fps)
  	{
  		// nothing has changed
  		return;
  	}
  
- 	screen_device_enumerator iter(m_machine->root_device());
+-	screen_device_enumerator iter(m_machine->root_device());
 -	auto first_screen = iter.first();
++	// The shape comes from the screen the view shows, when it shows just one.
 +	screen_device *first_screen = view_screen();
-+	if (!first_screen)
-+	{
-+		first_screen = iter.first();
-+	}
++	bool const single_screen_view = first_screen != nullptr;
  	if (!first_screen)
  	{
- 		return;
+-		return;
++		first_screen = primary_screen;
  	}
-+	bool const single_screen_view = view_screen() != nullptr;
 +	m_target_view = m_target->view();
  
  #if 0
  	{
-@@ -825,7 +980,7 @@ void headless_osd_interface::update_dimensions()
+@@ -820,12 +983,11 @@ void headless_osd_interface::update_dimensions()
+ 	}
+ #endif
+ 
+-	double new_fps = ATTOSECONDS_TO_HZ(first_screen->refresh_attoseconds());
+ 
  	// for multiple screens, use the full dimensions
  	std::pair<unsigned, unsigned> aspect;
  
@@ -366,7 +381,7 @@ index 89e30052..410e1e1a 100644
  	{
  		// for multiple screens or those with artwork, use the full dimensions
  		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
-@@ -856,6 +1011,45 @@ void headless_osd_interface::update_dimensions()
+@@ -856,6 +1018,45 @@ void headless_osd_interface::update_dimensions()
  			aspect.first, aspect.second)];
  }
  
@@ -412,7 +427,7 @@ index 89e30052..410e1e1a 100644
  void headless_osd_interface::update(bool skip_redraw)
  {
  	// check if the games video mode has changed
-@@ -1110,6 +1304,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -1110,6 +1311,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  

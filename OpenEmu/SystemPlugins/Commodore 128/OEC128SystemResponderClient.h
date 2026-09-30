@@ -55,8 +55,8 @@ typedef enum
 - (oneway void)rightMouseUp;
 - (oneway void)keyDown:(NSUInteger)keyCode;
 - (oneway void)keyUp:(NSUInteger)keyCode;
-- (oneway void)didPushC64Button:(OEC128Button)button forPlayer:(NSUInteger)player;
-- (oneway void)didReleaseC64Button:(OEC128Button)button forPlayer:(NSUInteger)player;
+- (oneway void)didPushC128Button:(OEC128Button)button forPlayer:(NSUInteger)player;
+- (oneway void)didReleaseC128Button:(OEC128Button)button forPlayer:(NSUInteger)player;
 - (oneway void)swapJoysticks;
 
 @end

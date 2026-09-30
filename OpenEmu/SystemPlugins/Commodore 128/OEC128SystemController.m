@@ -42,7 +42,7 @@
     static NSRegularExpression *marker;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        marker = [NSRegularExpression regularExpressionWithPattern:@"(^|[^0-9a-z])c?128([^0-9]|$)"
+        marker = [NSRegularExpression regularExpressionWithPattern:@"(^|[^0-9a-z])c?128([^0-9a-z]|$)"
                                                            options:NSRegularExpressionCaseInsensitive error:nil];
     });
 
