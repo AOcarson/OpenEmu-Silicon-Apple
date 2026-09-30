@@ -504,6 +504,12 @@ extension SidebarController: NSOutlineViewDataSource {
         
         let pboard = info.draggingPasteboard
         
+        if let system = item as? OEDBSystem {
+            guard let files = pboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else { return false }
+            database.importer.importItems(at: files, preferringSystemWithIdentifier: system.systemIdentifier)
+            return true
+        }
+        
         var collection: OEDBCollection?
         if item is OEDBCollection {
             
@@ -583,7 +589,11 @@ extension SidebarController: NSOutlineViewDataSource {
                 return []
             }
             
-            // For new games, change drop target to the consoles header
+            // New games dropped on a system go into that system when it takes
+            // their file type; on the header they are sorted automatically.
+            if item is OEDBSystem {
+                return .copy
+            }
             outlineView.setDropItem(groups[0], dropChildIndex: NSOutlineViewDropOnItemIndex)
             return .copy
         }

@@ -485,7 +485,14 @@ static void *OEViewEffectiveAppearanceKVOContext      = &OEViewEffectiveAppearan
 
     NSArray<NSURL*> *files = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
     OEROMImporter *romImporter = self.database.importer;
-    OEDBCollection *collection = [[self representedObject] isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection *)[self representedObject] : nil;
+    id represented = [self representedObject];
+    if ([represented isKindOfClass:[OEDBSystem class]])
+    {
+        // Dropped on an empty system: prefer that system.
+        [romImporter importItemsAtURLs:files preferringSystemWithIdentifier:[(OEDBSystem *)represented systemIdentifier]];
+        return YES;
+    }
+    OEDBCollection *collection = [represented isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection *)represented : nil;
     [romImporter importItemsAtURLs:files intoCollectionWithID:[collection permanentID] withCompletionHandler:nil];
 
     return YES;

@@ -46,6 +46,8 @@ static NSInteger OEWozDiskType(OEFile *file)
 
 // The Apple IIgs library takes 3.5" disks; 5.25" disks go to the Apple IIe
 // (whose controller claims only 5.25" sizes), so imports never have to ask.
+// The 5.25" types are still listed in OEFileSuffixes so that a 5.25" disk
+// dropped on the Apple IIgs in the library is imported there.
 - (OEFileSupport)canHandleFile:(__kindof OEFile *)file
 {
     NSString *ext = file.fileExtension.lowercaseString;

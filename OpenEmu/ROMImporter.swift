@@ -208,6 +208,35 @@ final class ROMImporter: NSObject {
         return success
     }
     
+    /// Imports files dropped on a system in the library (its sidebar entry or
+    /// its game list). A file of a type that system lists goes into it even if
+    /// the system would not claim it on its own - a 5.25" Apple II disk dropped
+    /// on the Apple IIgs, a C64 disk dropped on the Commodore 128. Anything
+    /// else is sorted as usual.
+    @objc(importItemsAtURLs:preferringSystemWithIdentifier:)
+    @discardableResult
+    func importItems(at urls: [URL], preferringSystemWithIdentifier systemIdentifier: String) -> Bool {
+        let controller = OESystemPlugin.systemPlugin(forIdentifier: systemIdentifier)?.controller
+        var success = false
+        for url in urls {
+            guard let controller,
+                  !url.hasDirectoryPath,
+                  controller.canHandleFileExtension(url.pathExtension.lowercased())
+            else {
+                success = importItem(at: url) || success
+                continue
+            }
+            
+            let alreadyQueued = operationQueue.operations.contains { ($0 as? ImportOperation)?.url == url }
+            if !alreadyQueued, let item = ImportOperation(url: url, in: self) {
+                item.systemIdentifiers = [systemIdentifier]
+                addOperation(item)
+                success = true
+            }
+        }
+        return success
+    }
+    
     // MARK: -
     
     @objc

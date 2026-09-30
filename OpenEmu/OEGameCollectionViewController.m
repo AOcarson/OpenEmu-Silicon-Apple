@@ -1034,8 +1034,16 @@ static NSString * const OEGameTableSortDescriptorsKey = @"OEGameTableSortDescrip
         id <OEGameCollectionViewItemProtocol>representedObject = (id <OEGameCollectionViewItemProtocol>)[self representedObject];
         NSArray *files = [draggingPasteboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
         OEROMImporter *romImporter = self.database.importer;
-        OEDBCollection *collection = [representedObject isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection *)representedObject : nil;
-        [romImporter importItemsAtURLs:files intoCollectionWithID:[collection permanentID] withCompletionHandler:nil];
+        if ([(id)representedObject isKindOfClass:[OEDBSystem class]])
+        {
+            // Dropped while a system is shown: prefer that system.
+            [romImporter importItemsAtURLs:files preferringSystemWithIdentifier:[(OEDBSystem *)representedObject systemIdentifier]];
+        }
+        else
+        {
+            OEDBCollection *collection = [representedObject isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection *)representedObject : nil;
+            [romImporter importItemsAtURLs:files intoCollectionWithID:[collection permanentID] withCompletionHandler:nil];
+        }
     }
     else if (draggingOperation == IKImageBrowserDropNone)
     {
@@ -1184,7 +1192,14 @@ static NSString * const OEGameTableSortDescriptorsKey = @"OEGameTableSortDescrip
 
     NSArray *files = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
     OEROMImporter *romImporter = self.database.importer;
-    OEDBCollection *collection = [[self representedObject] isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection*)[self representedObject] : nil;
+    id represented = [self representedObject];
+    if ([represented isKindOfClass:[OEDBSystem class]])
+    {
+        // Dropped while a system is shown: prefer that system.
+        [romImporter importItemsAtURLs:files preferringSystemWithIdentifier:[(OEDBSystem *)represented systemIdentifier]];
+        return YES;
+    }
+    OEDBCollection *collection = [represented isMemberOfClass:[OEDBCollection class]] ? (OEDBCollection*)represented : nil;
     [romImporter importItemsAtURLs:files intoCollectionWithID:[collection permanentID] withCompletionHandler:nil];
 
     return YES;

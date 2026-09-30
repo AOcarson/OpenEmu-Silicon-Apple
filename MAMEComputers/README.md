@@ -125,8 +125,12 @@ movement, a d-pad full deflection. Two joysticks are supported.
   DiskCopy 4.2 (`.dc`, `.dc42`). The Apple IIgs library claims only 3.5"
   disks and the Apple IIe library only 5.25" ones, decided by size and (for
   `.woz`) the disk type in the file, so importing never asks.
-- 5.25" disks can still be inserted with **Insert Cart/Disk/Tape…**; they go
-  into the IIgs's 5.25" drive.
+- To put a 5.25" disk in the Apple IIgs library instead, drop it on **Apple
+  IIgs** in the sidebar, or on the Apple IIgs game list (see "Choosing the
+  system when importing" below). 5.25" disks can also be inserted into a
+  running IIgs game with **Insert Cart/Disk/Tape…**.
+- An Apple IIe game can also be run on a IIgs without re-importing it:
+  choose **Machine › Apple IIgs (ROM 03)** in its Display Mode menu.
 - Machines: Apple IIgs (ROM 03, default) and ROM 01. The IIgs has no slot
   cards by default; add them through MAME's Slot Devices menu or
   `MAMEOptions`.
@@ -208,8 +212,9 @@ settings), with its own machine (C128 PAL by default, or NTSC):
 - **Which files go here.** The C128 shares every file type with the C64 and
   most of those files are C64 software, so imports go to the C64 unless the
   file or its folder is named as C128 software ("C128" or "128" as a word,
-  e.g. TOSEC's "Commodore C128" folders) or it is a `.d71` disk. Rename a
-  file or its folder before importing to send it to the C128.
+  e.g. TOSEC's "Commodore C128" folders) or it is a `.d71` disk. To send any
+  other file to the C128, drop it on **Commodore 128** in the sidebar or on
+  the Commodore 128 game list.
 - **Screen.** The C128 has a 40-column (VIC) and an 80-column (VDC) screen;
   **Screen** in the Display Mode menu shows one or the other (saved per
   game). The C128 itself chooses where to print at power-on from the 40/80
@@ -238,6 +243,15 @@ the Commodore key, F1–F8 as printed), plus:
 The arrow keys are the C128's own cursor keys, which work in C128 mode.
 Keys a Mac laptop lacks (Home, End, Page Up/Down) can be moved to any key or
 gamepad button in MAME's Input Settings.
+
+## Choosing the system when importing
+
+OpenEmu normally sorts imported files by itself. To choose, drop the files on
+a system in the sidebar, or on the game list while that system is shown:
+files of a type the system accepts go into it even if it wouldn't claim them
+on its own. Dropping on the "Consoles" header, or on a system that doesn't
+take that file type, sorts automatically as before. (A file already in the
+library stays where it is; remove it first to import it into another system.)
 
 ## All systems
 
@@ -294,7 +308,8 @@ Apple IIe:
 - **Arrow Keys Control Joystick** — arrow keys move joystick 1 instead of
   typing arrows. Handy for action games; leave off for text games.
 - **Joystick Timing Fix (next launch)** — see Lua plugins below.
-- **Machine (restarts)** — Apple //e (Enhanced) or Apple //e (Original).
+- **Machine (restarts)** — Apple //e (Enhanced), Apple //e (Original), or
+  Apple IIgs (ROM 03) to run the game on a IIgs (needs `apple2gs.zip`).
 - **Drive 1 / Drive 2** — shown for multi-disk games (see below).
 
 Apple IIgs: the same, without the timing fix, and Machine is ROM 03 or ROM 01.

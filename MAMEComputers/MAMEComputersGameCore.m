@@ -1364,6 +1364,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     static MCMachine apple2[] = {
         { @"apple2ee", @"Apple //e (Enhanced)" },
         { @"apple2e",  @"Apple //e (Original)" },
+        // The IIgs runs most //e software; its 5.25" drives are flop1/flop2 too.
+        { @"apple2gs", @"Apple IIgs (ROM 03)" },
     };
     static MCMachine apple2gs[] = {
         { @"apple2gs",   @"Apple IIgs (ROM 03)" },
