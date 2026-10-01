@@ -87,6 +87,9 @@ static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
 // run 3.5" drives at full speed (as on a IIgs set to Normal).
 static NSString *const MCIIgsConfigPort   = @":a2_config";
 static const uint32_t  MCIIgsNormalSpeed  = 0x08;
+// The patch also gives the IIgs the apple2_joystick_fix plugin's 255 -> 287
+// paddle rule (the plugin's taps only fit the Apple //e family's memory map).
+static const uint32_t  MCIIgsJoystickFix  = 0x10;
 
 enum { MCMaxPlayers = 2 };
 enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
@@ -825,17 +828,21 @@ static BOOL MCIsEightBitProDOSDisk(NSString *path)
     return _eightBitDisk;
 }
 
-- (void)applyIIgsSpeed
+/*! The IIgs's speed and joystick timing settings (see MCIIgsConfigPort). */
+- (void)applyIIgsSettings
 {
-    // Other Apple II machines use the same bit of their a2_config port for
-    // something else, so the setting is only ever sent to a IIgs.
+    // Other Apple II machines use the same bits of their a2_config port for
+    // something else, so the settings are only ever sent to a IIgs.
     if (!self.machineIsIIgs)
     {
         [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed];
+        [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickFix];
         return;
     }
     BOOL normal = self.iigsRunsAtNormalSpeed;
+    BOOL fix = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
     [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed value:(normal ? MCIIgsNormalSpeed : 0)];
+    [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickFix value:(fix ? MCIIgsJoystickFix : 0)];
 }
 
 - (BOOL)showsEightyColumns
@@ -1198,7 +1205,7 @@ static BOOL MCIsEightBitProDOSDisk(NSString *path)
 
     _machineRunning = YES;
     _supportsRewinding = _osd.supportsSave && _osd.stateSize < 1e6;
-    [self applyIIgsSpeed];
+    [self applyIIgsSettings];
 
     // A restart drops MAME's pointer to our video buffer; hand it back.
     if (_buffer != NULL)
@@ -1569,9 +1576,14 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
                 MCChoice(@"Fast (2.8 MHz)", MCModeIIgsSpeed, @"fast", !normal),
             ])];
         }
-        if (_system == MCSystemApple2 && [self pluginIsInstalled:MCPluginApple2JoystickFix])
+        BOOL fixOn = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
+        if (self.machineIsIIgs)
         {
-            BOOL fixOn = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
+            // Built into the IIgs emulation, so it applies at once.
+            [modes addObject:MCToggle(@"Joystick Timing Fix", MCModeJoystickFix, fixOn)];
+        }
+        else if (_system == MCSystemApple2 && [self pluginIsInstalled:MCPluginApple2JoystickFix])
+        {
             [modes addObject:MCToggle(@"Joystick Timing Fix (next launch)", MCModeJoystickFix, fixOn)];
         }
     }
@@ -1655,9 +1667,10 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
     else if ([key isEqualToString:MCModeJoystickFix])
     {
-        // MAME starts plugins once per session, so this applies the next time
-        // the game is opened.
+        // MAME starts plugins once per session, so on the Apple //e this
+        // applies the next time the game is opened; the IIgs has it built in.
         [self setPlugin:MCPluginApple2JoystickFix enabledForGame:!state];
+        [self applyIIgsSettings];
     }
     else if ([key isEqualToString:MCModeArrowKeys])
     {
@@ -1672,7 +1685,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     else if ([key isEqualToString:MCModeIIgsSpeed])
     {
         [self setSetting:([value isEqualToString:@"normal"] ? @"normal" : @"fast") forKey:MCSettingIIgsSpeed];
-        [self applyIIgsSpeed];
+        [self applyIIgsSettings];
     }
     else if ([key isEqualToString:MCModeScreen])
     {

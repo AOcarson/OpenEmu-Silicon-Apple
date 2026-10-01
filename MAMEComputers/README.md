@@ -148,7 +148,13 @@ pointer off the edge of the game and back. Mouse speed can be adjusted in
 MAME's menu (Analog Controls).
 
 The joystick works as on the Apple IIe (Joystick Connected in the Display
-Mode menu; Button 0 and 1 are also Open Apple and Option).
+Mode menu; Button 0 and 1 are also Open Apple and Option). The **Joystick
+Timing Fix** (on by default, per game in the Display Mode menu) is built
+into the IIgs emulation: a stick pushed all the way holds the paddle timer
+for 287 units instead of 255, as KEGS and AppleWin do, so games whose
+joystick loop never sees 255 (full down came out as up in Rampage) still
+read full right/down. It is the apple2_joystick_fix plugin's rule; the
+plugin itself only fits the Apple //e family's memory map.
 
 **Speed.** Apple IIe software reads the joystick with timing loops made for
 a 1 MHz CPU, so at the IIgs's 2.8 MHz the stick reads as pushed far
