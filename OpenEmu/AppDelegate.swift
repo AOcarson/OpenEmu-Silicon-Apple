@@ -818,13 +818,14 @@ class AppDelegate: NSObject, UNUserNotificationCenterDelegate {
             case .unknown:
                 // TCC may return "unknown" on subsequent launches when the app lacks a
                 // stable Developer ID signature, even though the user already granted
-                // access. Avoid re-prompting if we recorded a prior grant — the
-                // permission is still in effect even if IOHIDCheckAccess can't confirm it.
+                // access. Call requestAccess() anyway: as in the granted case below, it
+                // is what turns on HID event delivery for this binary, and it doesn't
+                // show a dialog when access is already granted. (Skipping it after a
+                // recorded prior grant left locally built, ad-hoc signed apps with no
+                // keyboard input after every rebuild.)
                 let previouslyGrantedKey = "OEInputMonitoringPreviouslyGranted"
-                if !UserDefaults.standard.bool(forKey: previouslyGrantedKey) {
-                    if dm.requestAccess() {
-                        UserDefaults.standard.set(true, forKey: previouslyGrantedKey)
-                    }
+                if dm.requestAccess() {
+                    UserDefaults.standard.set(true, forKey: previouslyGrantedKey)
                 }
 
             case .denied:
