@@ -289,6 +289,15 @@ Changes made there are saved **per game** in MAME's own config files under
 Slot changes need **Reset System** from the Slot Devices menu, which restarts
 the machine.
 
+### Keys bound in OpenEmu's Controls
+
+A Mac key bound to a control in Preferences › Controls (a joystick
+direction, a button, MAME Menu, Reset) does only that job; it is not also
+typed on the emulated keyboard. Bindings are per system, so the Apple IIe,
+Apple IIgs, C64 and C128 each have their own. For a quick keyboard joystick
+without setting up bindings, use **Arrow Keys Control Joystick** in the
+Display Mode menu instead.
+
 ### Binding keys to gamepad buttons
 
 Games that need keys beyond the joystick (a space bar to start, F1 for

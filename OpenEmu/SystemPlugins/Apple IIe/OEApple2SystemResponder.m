@@ -37,19 +37,24 @@
 
 // The Apple IIe is a keyboard computer: every Mac key is forwarded to the core,
 // which maps it onto the IIe keyboard (and, optionally, the arrow keys onto
-// the joystick). Keys bound in the controls preferences still fire their
-// bound control through super.
+// the joystick). Keys bound to a control in the controls preferences fire
+// that control instead (see below).
 
+// A key bound to a control in OpenEmu's Controls preferences (a joystick
+// direction, MAME Menu, Reset...) does that job only; every other key is
+// typed on the emulated keyboard.
 - (void)HIDKeyDown:(OEHIDEvent *)theEvent
 {
     [super HIDKeyDown:theEvent];
-    [self.client keyDown:theEvent.keycode];
+    if ([self.keyMap systemKeyForEvent:theEvent] == nil)
+        [self.client keyDown:theEvent.keycode];
 }
 
 - (void)HIDKeyUp:(OEHIDEvent *)theEvent
 {
     [super HIDKeyUp:theEvent];
-    [self.client keyUp:theEvent.keycode];
+    if ([self.keyMap systemKeyForEvent:theEvent] == nil)
+        [self.client keyUp:theEvent.keycode];
 }
 
 - (void)changeAnalogEmulatorKey:(OESystemKey *)aKey value:(CGFloat)value

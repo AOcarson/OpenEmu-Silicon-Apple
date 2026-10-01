@@ -35,16 +35,21 @@
     return @protocol(OEC128SystemResponderClient);
 }
 
+// A key bound to a control in OpenEmu's Controls preferences (a joystick
+// direction, MAME Menu, Reset...) does that job only; every other key is
+// typed on the emulated keyboard.
 - (void)HIDKeyDown:(OEHIDEvent *)theEvent
 {
     [super HIDKeyDown:theEvent];
-    [self.client keyDown:theEvent.keycode];
+    if ([self.keyMap systemKeyForEvent:theEvent] == nil)
+        [self.client keyDown:theEvent.keycode];
 }
 
 - (void)HIDKeyUp:(OEHIDEvent *)theEvent
 {
     [super HIDKeyUp:theEvent];
-    [self.client keyUp:theEvent.keycode];
+    if ([self.keyMap systemKeyForEvent:theEvent] == nil)
+        [self.client keyUp:theEvent.keycode];
 }
 
 - (void)pressEmulatorKey:(OESystemKey *)aKey
