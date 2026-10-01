@@ -150,6 +150,15 @@ MAME's menu (Analog Controls).
 The joystick works as on the Apple IIe (Joystick Connected in the Display
 Mode menu; Button 0 and 1 are also Open Apple and Option).
 
+**Speed.** Apple IIe software reads the joystick with timing loops made for
+a 1 MHz CPU, so at the IIgs's 2.8 MHz the stick reads as pushed far
+right/down — exactly as on a real IIgs set to Fast. The Display Mode menu's
+**Speed** sets Normal (1 MHz) or Fast (2.8 MHz) per game. It defaults to
+Normal for 5.25" disks and for Apple IIe games run on the IIgs machine, and
+to Fast for 3.5" (IIgs) software. (The Mac pointer no longer moves the
+joystick either: MAME's default of mixing the mouse into analog sticks is
+turned off.)
+
 ## Commodore 64
 
 The C64 starts as a PAL machine (most C64 games are European); switch a game

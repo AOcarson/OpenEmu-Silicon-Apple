@@ -110,7 +110,7 @@ index e773e669..8f361163 100644
  	virtual bool is_menu_active() override;
  	bool can_paste();
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..5597eae3 100644
+index 89e30052..c7625fb5 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
 @@ -49,6 +49,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
@@ -427,7 +427,30 @@ index 89e30052..5597eae3 100644
  void headless_osd_interface::update(bool skip_redraw)
  {
  	// check if the games video mode has changed
-@@ -1110,6 +1311,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -927,6 +1128,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
+ //				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_ESC, input_seq::or_code, JOYCODE_SELECT, JOYCODE_START);
+ //				break;
+ 
++			// MAME also feeds the mouse into analog joysticks and paddles by
++			// default. OpenEmu's mouse (the Apple IIgs's) would then nudge the
++			// joystick whenever the pointer moved over the game, so analog
++			// controls take only the joystick here.
++			case IPT_AD_STICK_X:
++			case IPT_PADDLE:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_X_INDEXED(entry.player()));
++				break;
++			case IPT_AD_STICK_Y:
++			case IPT_PADDLE_V:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_Y_INDEXED(entry.player()));
++				break;
++			case IPT_AD_STICK_Z:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_Z_INDEXED(entry.player()));
++				break;
++
+ 			// leave everything else alone
+ 			default:
+ 				break;
+@@ -1110,6 +1327,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  
