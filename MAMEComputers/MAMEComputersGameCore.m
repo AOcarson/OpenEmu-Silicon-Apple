@@ -58,6 +58,7 @@ static NSString *const MCSettingJoystickPort     = @"JoystickPort";             
 static NSString *const MCSettingAutostart        = @"Autostart";                 // C64/C128: BOOL, default YES
 static NSString *const MCSettingScreen           = @"Screen";                    // C128: "40" or "80", default "40"
 static NSString *const MCSettingIIgsSpeed        = @"IIgsSpeed";                 // IIgs machine: "normal" (1 MHz) or "fast" (2.8 MHz)
+static NSString *const MCSettingJoystickRange    = @"JoystickRange";             // IIgs machine: percent, 50-100, default 100
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
 static NSString *const MCSettingDisabledPlugins  = @"DisabledMAMEPlugins";       // [ plugin folder name ], removed
@@ -80,6 +81,7 @@ static NSString *const MCModeAutostart    = @"mc.autostart";
 static NSString *const MCModeMAMEMenu     = @"mc.mamemenu";
 static NSString *const MCModeScreen       = @"mc.screen";
 static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
+static NSString *const MCModeJoystickRange = @"mc.joystickrange";
 
 // The IIgs's "Apple II software speed" setting, which the core's MAME patch
 // adds to the IIgs's Machine Configuration: Normal keeps the machine at
@@ -90,6 +92,9 @@ static const uint32_t  MCIIgsNormalSpeed  = 0x08;
 // The patch also gives the IIgs the apple2_joystick_fix plugin's 255 -> 287
 // paddle rule (the plugin's taps only fit the Apple //e family's memory map).
 static const uint32_t  MCIIgsJoystickFix  = 0x10;
+// Bits 5-7: how far from centre a pushed stick reads, 100% down to 50% in
+// steps of 10 (some games misread full deflection; Rampage takes down as up).
+static const uint32_t  MCIIgsJoystickRange = 0xE0;
 
 enum { MCMaxPlayers = 2 };
 enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
@@ -757,12 +762,24 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     {
         [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed];
         [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickFix];
+        [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickRange];
         return;
     }
+    uint32_t rangeStep = (uint32_t)((100 - self.joystickRange) / 10);
     BOOL normal = self.iigsRunsAtNormalSpeed;
     BOOL fix = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
     [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed value:(normal ? MCIIgsNormalSpeed : 0)];
     [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickFix value:(fix ? MCIIgsJoystickFix : 0)];
+    [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickRange value:(rangeStep << 5)];
+}
+
+/*! The IIgs's Joystick Range, in percent: 100, 90, ... 50. */
+- (NSInteger)joystickRange
+{
+    id value = _settings[MCSettingJoystickRange];
+    NSInteger range = [value isKindOfClass:[NSNumber class]] ? [value integerValue] : 100;
+    range = (range / 10) * 10;
+    return MAX(50, MIN(100, range));
 }
 
 - (BOOL)showsEightyColumns
@@ -1499,8 +1516,16 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         BOOL fixOn = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
         if (self.machineIsIIgs)
         {
-            // Built into the IIgs emulation, so it applies at once.
+            // Built into the IIgs emulation, so these apply at once.
             [modes addObject:MCToggle(@"Joystick Timing Fix", MCModeJoystickFix, fixOn)];
+            NSInteger range = self.joystickRange;
+            NSMutableArray *ranges = [NSMutableArray array];
+            for (NSInteger r = 100; r >= 50; r -= 10)
+            {
+                NSString *label = (r == 100) ? @"100% (full)" : [NSString stringWithFormat:@"%ld%%", (long)r];
+                [ranges addObject:MCChoice(label, MCModeJoystickRange, [@(r) stringValue], range == r)];
+            }
+            [modes addObject:MCGroup(@"Joystick Range", ranges)];
         }
         else if (_system == MCSystemApple2 && [self pluginIsInstalled:MCPluginApple2JoystickFix])
         {
@@ -1601,6 +1626,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     {
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
+    }
+    else if ([key isEqualToString:MCModeJoystickRange])
+    {
+        [self setSetting:@(value.integerValue) forKey:MCSettingJoystickRange];
+        [self applyIIgsSettings];
     }
     else if ([key isEqualToString:MCModeIIgsSpeed])
     {

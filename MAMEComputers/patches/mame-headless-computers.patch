@@ -110,10 +110,10 @@ index e773e669..8f361163 100644
  	virtual bool is_menu_active() override;
  	bool can_paste();
 diff --git a/src/mame/apple/apple2gs.cpp b/src/mame/apple/apple2gs.cpp
-index 6ba27735..a6c63a84 100644
+index 6ba27735..f453e4d8 100644
 --- a/src/mame/apple/apple2gs.cpp
 +++ b/src/mame/apple/apple2gs.cpp
-@@ -565,6 +565,26 @@ private:
+@@ -565,6 +565,38 @@ private:
  	void raise_irq(int irq);
  	void lower_irq(int irq);
  	void update_speed();
@@ -128,7 +128,19 @@ index 6ba27735..a6c63a84 100644
 +	// Fix"): a joystick axis at 255 holds its paddle timer for 287 units, as
 +	// some games time the paddle with a loop that never sees 255 on exact
 +	// timing, so full right/down never registers.
-+	double paddle_units(u8 value) { return (value == 255 && (m_sysconfig->read() & 0x10)) ? 287.0 : double(value); }
++	// OpenEmu: "Joystick range" (a2_config bits 5-7) scales how far from
++	// centre a pushed stick reads, like the joystick scale in KEGS/GSplus:
++	// some games misread a stick at full deflection (Rampage reads full down
++	// as up). The timing fix only applies at 100%.
++	double paddle_units(u8 value)
++	{
++		static const int percent[8] = { 100, 90, 80, 70, 60, 50, 100, 100 };
++		ioport_value const config = m_sysconfig->read();
++		int const range = percent[(config >> 5) & 7];
++		if (range < 100)
++			return 128.0 + (double(value) - 128.0) * range / 100.0;
++		return (value == 255 && (config & 0x10)) ? 287.0 : double(value);
++	}
 +
 +	attotime m_last_iwm_access = attotime::zero;
 +	void note_iwm_access() { m_last_iwm_access = machine().time(); }
@@ -140,7 +152,7 @@ index 6ba27735..a6c63a84 100644
  	int get_vpos();
  	void process_clock();
  
-@@ -591,6 +611,11 @@ private:
+@@ -591,6 +623,11 @@ private:
  			isfast = false;
  		}
  
@@ -152,7 +164,7 @@ index 6ba27735..a6c63a84 100644
  		if (isfast)
  		{
  			m_maincpu->set_unscaled_clock(m_accel_speed);
-@@ -615,6 +640,11 @@ private:
+@@ -615,6 +652,11 @@ private:
  			isfast = false;
  		}
  
@@ -164,7 +176,7 @@ index 6ba27735..a6c63a84 100644
  		if (isfast)
  		{
  			m_maincpu->set_unscaled_clock(A2GS_14M/5);
-@@ -1645,7 +1675,7 @@ void apple2gs_state::machine_reset()
+@@ -1645,7 +1687,7 @@ void apple2gs_state::machine_reset()
  	{
  		static const int speeds[4] = { 7000000, 8000000, 12000000, 16000000 };
  		m_accel_present = true;
@@ -173,7 +185,7 @@ index 6ba27735..a6c63a84 100644
  		m_accel_speed = speeds[idxSpeed];
  		m_accel_fast = true;
  		accel_full_speed();
-@@ -1703,6 +1733,11 @@ void apple2gs_state::update_speed()
+@@ -1703,6 +1745,11 @@ void apple2gs_state::update_speed()
  		isfast = false;
  	}
  
@@ -185,7 +197,7 @@ index 6ba27735..a6c63a84 100644
  	// prevent unnecessary reschedules by only setting this if it changed
  	if (isfast != m_last_speed)
  	{
-@@ -1747,6 +1782,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
+@@ -1747,6 +1794,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
  	int scanline = m_screen->vpos();
  	m_screen->update_partial(scanline);
  
@@ -198,7 +210,7 @@ index 6ba27735..a6c63a84 100644
  	if ((scanline % 8) == 0)
  	{
  		#if !RUN_ADB_MICRO
-@@ -2200,19 +2241,19 @@ void apple2gs_state::do_io(int offset)
+@@ -2200,19 +2253,19 @@ void apple2gs_state::do_io(int offset)
  			// 558 monostable one-shot timers; a running timer cannot be restarted
  			if (machine().time().as_double() >= m_joystick_x1_time)
  			{
@@ -222,7 +234,7 @@ index 6ba27735..a6c63a84 100644
  			}
  			break;
  
-@@ -2665,19 +2706,19 @@ u8 apple2gs_state::c000_r(offs_t offset)
+@@ -2665,19 +2718,19 @@ u8 apple2gs_state::c000_r(offs_t offset)
  				// 558 monostable one-shot timers; a running timer cannot be restarted
  				if (machine().time().as_double() >= m_joystick_x1_time)
  				{
@@ -246,7 +258,7 @@ index 6ba27735..a6c63a84 100644
  				}
  
  			}
-@@ -3181,6 +3222,11 @@ u8 apple2gs_state::c080_r(offs_t offset)
+@@ -3181,6 +3234,11 @@ u8 apple2gs_state::c080_r(offs_t offset)
  				accel_slot(slot);
  			}
  
@@ -258,7 +270,7 @@ index 6ba27735..a6c63a84 100644
  			if (slot >= 4)
  			{
  				if ((offset & 0xf) == 0x9)
-@@ -3231,6 +3277,11 @@ void apple2gs_state::c080_w(offs_t offset, u8 data)
+@@ -3231,6 +3289,11 @@ void apple2gs_state::c080_w(offs_t offset, u8 data)
  	}
  	else
  	{
@@ -270,7 +282,7 @@ index 6ba27735..a6c63a84 100644
  		if (slot >= 4)
  		{
  			if ((offset & 0xf) == 0x9)
-@@ -4823,6 +4874,12 @@ INPUT_PORTS_START( apple2gs )
+@@ -4823,6 +4886,19 @@ INPUT_PORTS_START( apple2gs )
  	PORT_CONFSETTING(0x03, "8 MHz ZipGS")
  	PORT_CONFSETTING(0x05, "12 MHz ZipGS")
  	PORT_CONFSETTING(0x07, "16 MHz ZipGS")
@@ -280,6 +292,13 @@ index 6ba27735..a6c63a84 100644
 +	PORT_CONFNAME(0x10, 0x00, "Joystick timing fix (255 = 287)")
 +	PORT_CONFSETTING(0x00, DEF_STR(Off))
 +	PORT_CONFSETTING(0x10, DEF_STR(On))
++	PORT_CONFNAME(0xe0, 0x00, "Joystick range")
++	PORT_CONFSETTING(0x00, "100%")
++	PORT_CONFSETTING(0x20, "90%")
++	PORT_CONFSETTING(0x40, "80%")
++	PORT_CONFSETTING(0x60, "70%")
++	PORT_CONFSETTING(0x80, "60%")
++	PORT_CONFSETTING(0xa0, "50%")
  INPUT_PORTS_END
  
  void apple2gs_state::apple2gs(machine_config &config)

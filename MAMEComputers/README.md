@@ -154,7 +154,10 @@ into the IIgs emulation: a stick pushed all the way holds the paddle timer
 for 287 units instead of 255, as KEGS and AppleWin do, so games whose
 joystick loop never sees 255 (full down came out as up in Rampage) still
 read full right/down. It is the apple2_joystick_fix plugin's rule; the
-plugin itself only fits the Apple //e family's memory map.
+plugin itself only fits the Apple //e family's memory map. **Joystick Range**
+(100% down to 50%, per game) makes a pushed stick read less far from centre,
+like the joystick scale in KEGS/GSplus, for games that misread a stick at
+full deflection.
 
 **Speed.** Apple IIe software reads the joystick with timing loops made for
 a 1 MHz CPU, so at the IIgs's 2.8 MHz the stick reads as pushed far
