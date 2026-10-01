@@ -166,11 +166,11 @@ so the IIgs firmware can still read 3.5" disks at full speed. (It is a setting
 the core's MAME patch adds to the IIgs, shown in MAME's Machine
 Configuration menu as "Apple II software speed".)
 
-Speed defaults to Normal for 5.25" disks, for Apple IIe games run on the IIgs
-machine, and for 3.5" ProDOS disks of 8-bit software (a PRODOS file but no
-SYSTEM folder or IIgs application — many Apple IIe/IIc games, such as
-Rampage, also shipped on 3.5" disks). Everything else on 3.5" disks, and all
-3.5" .woz images, default to Fast; a game's choice is remembered. (The Mac
+Speed defaults to Normal for 5.25" disks and for Apple IIe games run on the
+IIgs machine, and to Fast for 3.5" disks — including 8-bit games on 3.5"
+disks, which were made for the IIc Plus and IIgs and can expect their speed
+(Rampage reads its joystick wrongly at 1 MHz). A game's choice is
+remembered. (The Mac
 pointer no longer moves the joystick either: MAME's default of mixing the
 mouse into analog sticks is turned off.)
 
