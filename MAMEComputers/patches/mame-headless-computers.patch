@@ -110,23 +110,31 @@ index e773e669..8f361163 100644
  	virtual bool is_menu_active() override;
  	bool can_paste();
 diff --git a/src/mame/apple/apple2gs.cpp b/src/mame/apple/apple2gs.cpp
-index 6ba27735..2ddd5e2f 100644
+index 6ba27735..d0ebfdf2 100644
 --- a/src/mame/apple/apple2gs.cpp
 +++ b/src/mame/apple/apple2gs.cpp
-@@ -565,6 +565,12 @@ private:
+@@ -565,6 +565,20 @@ private:
  	void raise_irq(int irq);
  	void lower_irq(int irq);
  	void update_speed();
 +
-+	// OpenEmu: "Apple II software speed: Normal" - 1 MHz except while a disk
-+	// drive's motor is on, when the speed register applies as usual (the
-+	// firmware runs 3.5" drives at full speed and slows for 5.25" ones).
-+	// Like a IIgs whose Control Panel is set to Normal.
-+	bool normal_speed_forced() { return (m_sysconfig->read() & 0x08) && !m_motors_active; }
++	// OpenEmu: "Apple II software speed: Normal" - 1 MHz except while the
++	// disk controller (the IWM) is in use, when the speed register applies as
++	// usual: the firmware runs 3.5" drives at full speed and slows for 5.25"
++	// ones. Like a IIgs whose Control Panel is set to Normal. Disk activity,
++	// not the drive enable, decides, since software can leave a drive enabled
++	// while the game plays.
++	attotime m_last_iwm_access = attotime::zero;
++	void note_iwm_access() { m_last_iwm_access = machine().time(); }
++	bool normal_speed_forced()
++	{
++		return (m_sysconfig->read() & 0x08)
++				&& (machine().time() - m_last_iwm_access) > attotime::from_msec(20);
++	}
  	int get_vpos();
  	void process_clock();
  
-@@ -591,6 +597,11 @@ private:
+@@ -591,6 +605,11 @@ private:
  			isfast = false;
  		}
  
@@ -138,7 +146,7 @@ index 6ba27735..2ddd5e2f 100644
  		if (isfast)
  		{
  			m_maincpu->set_unscaled_clock(m_accel_speed);
-@@ -615,6 +626,11 @@ private:
+@@ -615,6 +634,11 @@ private:
  			isfast = false;
  		}
  
@@ -150,7 +158,7 @@ index 6ba27735..2ddd5e2f 100644
  		if (isfast)
  		{
  			m_maincpu->set_unscaled_clock(A2GS_14M/5);
-@@ -1645,7 +1661,7 @@ void apple2gs_state::machine_reset()
+@@ -1645,7 +1669,7 @@ void apple2gs_state::machine_reset()
  	{
  		static const int speeds[4] = { 7000000, 8000000, 12000000, 16000000 };
  		m_accel_present = true;
@@ -159,7 +167,7 @@ index 6ba27735..2ddd5e2f 100644
  		m_accel_speed = speeds[idxSpeed];
  		m_accel_fast = true;
  		accel_full_speed();
-@@ -1703,6 +1719,11 @@ void apple2gs_state::update_speed()
+@@ -1703,6 +1727,11 @@ void apple2gs_state::update_speed()
  		isfast = false;
  	}
  
@@ -171,7 +179,7 @@ index 6ba27735..2ddd5e2f 100644
  	// prevent unnecessary reschedules by only setting this if it changed
  	if (isfast != m_last_speed)
  	{
-@@ -1747,6 +1768,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
+@@ -1747,6 +1776,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
  	int scanline = m_screen->vpos();
  	m_screen->update_partial(scanline);
  
@@ -184,7 +192,31 @@ index 6ba27735..2ddd5e2f 100644
  	if ((scanline % 8) == 0)
  	{
  		#if !RUN_ADB_MICRO
-@@ -4823,6 +4850,9 @@ INPUT_PORTS_START( apple2gs )
+@@ -3181,6 +3216,11 @@ u8 apple2gs_state::c080_r(offs_t offset)
+ 				accel_slot(slot);
+ 			}
+ 
++			if (slot == 6)
++			{
++				note_iwm_access();  // OpenEmu: see normal_speed_forced
++			}
++
+ 			if (slot >= 4)
+ 			{
+ 				if ((offset & 0xf) == 0x9)
+@@ -3231,6 +3271,11 @@ void apple2gs_state::c080_w(offs_t offset, u8 data)
+ 	}
+ 	else
+ 	{
++		if (slot == 6)
++		{
++			note_iwm_access();  // OpenEmu: see normal_speed_forced
++		}
++
+ 		if (slot >= 4)
+ 		{
+ 			if ((offset & 0xf) == 0x9)
+@@ -4823,6 +4868,9 @@ INPUT_PORTS_START( apple2gs )
  	PORT_CONFSETTING(0x03, "8 MHz ZipGS")
  	PORT_CONFSETTING(0x05, "12 MHz ZipGS")
  	PORT_CONFSETTING(0x07, "16 MHz ZipGS")

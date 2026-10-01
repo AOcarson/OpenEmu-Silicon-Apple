@@ -155,8 +155,8 @@ a 1 MHz CPU, so at the IIgs's 2.8 MHz the stick reads as pushed far
 right/down and the game runs far too fast — exactly as on a real IIgs set to
 Fast. The Display Mode menu's **Speed** sets Normal (1 MHz) or Fast
 (2.8 MHz) per game. Normal works like a IIgs whose Control Panel is set to
-Normal: the machine runs at 1 MHz except while a disk drive is running, so
-the IIgs firmware can still read 3.5" disks at full speed. (It is a setting
+Normal: the machine runs at 1 MHz except while the disk controller is busy,
+so the IIgs firmware can still read 3.5" disks at full speed. (It is a setting
 the core's MAME patch adds to the IIgs, shown in MAME's Machine
 Configuration menu as "Apple II software speed".)
 
