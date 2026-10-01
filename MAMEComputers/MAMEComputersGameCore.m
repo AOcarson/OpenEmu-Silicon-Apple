@@ -517,6 +517,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 
     NSString  *_launchPath;
     BOOL       _launchedFromDisk;
+    BOOL       _eightBitDisk, _eightBitDiskChecked;  // see iigsRunsAtNormalSpeed
     MCDiskSet *_disks;
     NSString  *_drive1Path;    // may be a file inserted from outside the set
     NSInteger  _drive2Index;
@@ -653,6 +654,90 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     return NO; // .2mg, DiskCopy: 3.5"
 }
 
+/*! The volume directory of a ProDOS-order 3.5" image (.po, .2mg, DiskCopy):
+ *  YES when it holds Apple IIe-era (ProDOS 8) software - a PRODOS file and
+ *  neither a SYSTEM folder (GS/OS and ProDOS 16 keep their system there) nor
+ *  a IIgs application (file type $B3). Many 8-bit games shipped on 3.5"
+ *  disks for the IIc and IIgs; they need the IIgs at Normal speed. */
+static BOOL MCScanEightBitProDOSVolume(NSFileHandle *fh, unsigned long long base, unsigned long long size)
+{
+    BOOL hasProDOS = NO, hasIIgsSystem = NO;
+    uint16_t block = 2;  // volume directory key block
+    for (int guard = 0; block != 0 && guard < 16; guard++)
+    {
+        unsigned long long offset = base + (unsigned long long)block * 512;
+        if (offset + 512 > size)
+            return NO;
+        [fh seekToFileOffset:offset];
+        NSData *data = [fh readDataOfLength:512];
+        if (data.length != 512)
+            return NO;
+        const uint8_t *b = (const uint8_t *)data.bytes;
+
+        for (int i = 0; i < 13; i++)
+        {
+            const uint8_t *entry = b + 4 + i * 39;
+            uint8_t storage = entry[0] >> 4, length = entry[0] & 0x0F;
+            if (guard == 0 && i == 0)
+            {
+                if (storage != 0xF)
+                    return NO;  // not a ProDOS volume
+                continue;
+            }
+            if (storage == 0)
+                continue;       // deleted entry
+            const char *name = (const char *)entry + 1;
+            if (storage == 0xD && length == 6 && memcmp(name, "SYSTEM", 6) == 0)
+                hasIIgsSystem = YES;
+            if (entry[0x10] == 0xB3)
+                hasIIgsSystem = YES;
+            if (entry[0x10] == 0xFF && length == 6 && memcmp(name, "PRODOS", 6) == 0)
+                hasProDOS = YES;
+        }
+        block = (uint16_t)(b[2] | (b[3] << 8));
+    }
+    return hasProDOS && !hasIIgsSystem;
+}
+
+static BOOL MCIsEightBitProDOSDisk(NSString *path)
+{
+    NSString *ext = path.pathExtension.lowercaseString;
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    if (fh == nil)
+        return NO;
+    unsigned long long size = [[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize];
+
+    BOOL result = NO;
+    @try
+    {
+        unsigned long long base = 0;
+        BOOL known = YES;
+        if ([ext isEqualToString:@"2mg"])
+        {
+            NSData *head = [fh readDataOfLength:64];
+            const uint8_t *h = (const uint8_t *)head.bytes;
+            known = head.length == 64 && memcmp(h, "2IMG", 4) == 0 && h[12] == 1;  // ProDOS order
+            if (known)
+                base = h[24] | (h[25] << 8) | (h[26] << 16) | ((unsigned long long)h[27] << 24);
+        }
+        else if ([ext isEqualToString:@"dc"] || [ext isEqualToString:@"dc42"])
+        {
+            base = 84;  // DiskCopy 4.2 header
+        }
+        else if (![ext isEqualToString:@"po"])
+        {
+            known = NO; // .woz: no file system to read without decoding
+        }
+        result = known && MCScanEightBitProDOSVolume(fh, base, size);
+    }
+    @catch (NSException *exception)
+    {
+        result = NO;
+    }
+    [fh closeFile];
+    return result;
+}
+
 /*! MAME image devices for the disk drives, drive 1 first. */
 - (NSArray<NSString *> *)driveDevices
 {
@@ -719,14 +804,24 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
 
 /*! Apple IIe software reads the joystick with timing loops written for a
  *  1 MHz CPU; at the IIgs's 2.8 MHz they read the stick as pushed far
- *  right/down, as on a real IIgs set to Fast. So 5.25" (Apple IIe era) disks
- *  and Apple IIe games default to Normal speed; IIgs software to Fast. */
+ *  right/down, as on a real IIgs set to Fast (and the game itself runs
+ *  nearly three times too fast). So Apple IIe games, 5.25" disks and 3.5"
+ *  ProDOS 8 disks default to Normal speed; IIgs software to Fast. */
 - (BOOL)iigsRunsAtNormalSpeed
 {
     id value = _settings[MCSettingIIgsSpeed];
     if ([value isKindOfClass:[NSString class]])
         return [value isEqualToString:@"normal"];
-    return _system == MCSystemApple2 || (_launchedFromDisk && MCIsFiveInchAppleDisk(_launchPath));
+    if (_system == MCSystemApple2)
+        return YES;
+    if (!_launchedFromDisk)
+        return NO;
+    if (!_eightBitDiskChecked)
+    {
+        _eightBitDisk = MCIsFiveInchAppleDisk(_launchPath) || MCIsEightBitProDOSDisk(_launchPath);
+        _eightBitDiskChecked = YES;
+    }
+    return _eightBitDisk;
 }
 
 - (void)applyIIgsSpeed

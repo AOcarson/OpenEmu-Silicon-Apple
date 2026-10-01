@@ -154,8 +154,11 @@ Mode menu; Button 0 and 1 are also Open Apple and Option).
 a 1 MHz CPU, so at the IIgs's 2.8 MHz the stick reads as pushed far
 right/down — exactly as on a real IIgs set to Fast. The Display Mode menu's
 **Speed** sets Normal (1 MHz) or Fast (2.8 MHz) per game. It defaults to
-Normal for 5.25" disks and for Apple IIe games run on the IIgs machine, and
-to Fast for 3.5" (IIgs) software. (The Mac pointer no longer moves the
+Normal for 5.25" disks, for Apple IIe games run on the IIgs machine, and for
+3.5" ProDOS disks of 8-bit software (a PRODOS file but no SYSTEM folder or
+IIgs application — many Apple IIe/IIc games, such as Rampage, also shipped
+on 3.5" disks). Everything else on 3.5" disks, and all 3.5" .woz images,
+default to Fast; a game's choice is remembered. (The Mac pointer no longer moves the
 joystick either: MAME's default of mixing the mouse into analog sticks is
 turned off.)
 
