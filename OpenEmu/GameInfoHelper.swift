@@ -272,7 +272,7 @@ final class GameInfoHelper {
                     SELECT DISTINCT releaseTitleName as 'gameTitle', releaseCoverFront as 'boxImageURL', releaseDescription as 'gameDescription', regionName as 'region'
                     FROM ROMs rom LEFT JOIN RELEASES release USING (romID) LEFT JOIN REGIONS region on (regionLocalizedID=region.regionID)
                     WHERE \(conditions)
-                      AND romSystemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
+                      AND rom.systemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
                       AND releaseCoverFront IS NOT NULL AND releaseCoverFront != ''
                     LIMIT 5
                     """
@@ -302,7 +302,7 @@ final class GameInfoHelper {
                             SELECT DISTINCT releaseTitleName as 'gameTitle', releaseCoverFront as 'boxImageURL', releaseDescription as 'gameDescription', regionName as 'region'
                             FROM ROMs rom LEFT JOIN RELEASES release USING (romID) LEFT JOIN REGIONS region on (regionLocalizedID=region.regionID)
                             WHERE \(cond)
-                              AND romSystemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
+                              AND rom.systemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
                               AND releaseCoverFront IS NOT NULL AND releaseCoverFront != ''
                             LIMIT 1
                             """
@@ -328,7 +328,7 @@ final class GameInfoHelper {
                         SELECT DISTINCT releaseTitleName as 'gameTitle', releaseCoverFront as 'boxImageURL', releaseDescription as 'gameDescription', regionName as 'region'
                         FROM ROMs rom LEFT JOIN RELEASES release USING (romID) LEFT JOIN REGIONS region on (regionLocalizedID=region.regionID)
                         WHERE \(cond)
-                          AND romSystemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
+                          AND rom.systemID IN (SELECT systemID FROM SYSTEMS WHERE systemOEID = '\(systemIdentifier)')
                           AND releaseCoverFront IS NOT NULL AND releaseCoverFront != ''
                         LIMIT 5
                         """
