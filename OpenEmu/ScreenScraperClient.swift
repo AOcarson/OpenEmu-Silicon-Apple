@@ -86,11 +86,24 @@ final class ScreenScraperClient {
             URLQueryItem(name: "softname",    value: "OpenEmu-Silicon"),
         ]
         guard let url = components.url else { return false }
-        let (_, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse else { return false }
         let ok = (200..<300).contains(http.statusCode)
-        if ok { await MainActor.run { hasVerifiedCredentials = true } }
+        if ok {
+            await MainActor.run { hasVerifiedCredentials = true }
+        } else {
+            os_log(.error, log: .default, "ScreenScraper refused the credentials check: HTTP %d: %{public}@",
+                   http.statusCode, ScreenScraperClient.bodySnippet(data))
+        }
         return ok
+    }
+
+    /// The start of a ScreenScraper reply as text, for the log. Error replies
+    /// are a short sentence saying what was refused.
+    static func bodySnippet(_ data: Data?) -> String {
+        guard let data = data, !data.isEmpty else { return "(empty reply)" }
+        let text = String(decoding: data.prefix(300), as: UTF8.self)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // ScreenScraper numeric system IDs keyed by OpenEmu system identifier.
@@ -332,7 +345,10 @@ final class ScreenScraperClient {
                 case 200..<300:
                     break
                 case 401, 403:
-                    os_log(.error, log: .default, "ScreenScraper auth error: HTTP %d", http.statusCode)
+                    // ScreenScraper says in the body which credentials it refused
+                    // (developer key or user login); it never echoes them back.
+                    os_log(.error, log: .default, "ScreenScraper auth error: HTTP %d: %{public}@",
+                           http.statusCode, ScreenScraperClient.bodySnippet(data))
                     fetchResult = .failure(.badCredentials)
                     Task { @MainActor in self.lastFetchError = .badCredentials }
                     return
@@ -346,7 +362,8 @@ final class ScreenScraperClient {
                     Task { @MainActor in self.lastFetchError = .rateLimited }
                     return
                 default:
-                    os_log(.error, log: .default, "ScreenScraper unexpected HTTP %d", http.statusCode)
+                    os_log(.error, log: .default, "ScreenScraper unexpected HTTP %d: %{public}@",
+                           http.statusCode, ScreenScraperClient.bodySnippet(data))
                     fetchResult = .failure(.invalidResponse)
                     Task { @MainActor in self.lastFetchError = .invalidResponse }
                     return
