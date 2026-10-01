@@ -81,11 +81,12 @@ static NSString *const MCModeMAMEMenu     = @"mc.mamemenu";
 static NSString *const MCModeScreen       = @"mc.screen";
 static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
 
-// The IIgs speed register (CYAREG, $C036; bank $E0 always reaches I/O).
-// Bit 7 is fast mode; bit 2 keeps the slot 6 drive slowing the machine.
-static const uint32_t MCIIgsSpeedRegister = 0xE0C036;
-static const uint32_t MCIIgsSlowValue     = 0x04;
-static const uint32_t MCIIgsSpeedCheat    = 1000;   // outside the 0-255 user cheat slots
+// The IIgs's "Apple II software speed" setting, which the core's MAME patch
+// adds to the IIgs's Machine Configuration: Normal keeps the machine at
+// 1 MHz except while a disk drive's motor is on, so the firmware can still
+// run 3.5" drives at full speed (as on a IIgs set to Normal).
+static NSString *const MCIIgsConfigPort   = @":a2_config";
+static const uint32_t  MCIIgsNormalSpeed  = 0x08;
 
 enum { MCMaxPlayers = 2 };
 enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
@@ -826,9 +827,15 @@ static BOOL MCIsEightBitProDOSDisk(NSString *path)
 
 - (void)applyIIgsSpeed
 {
-    BOOL forceNormal = self.machineIsIIgs && self.iigsRunsAtNormalSpeed;
-    // Written every frame, so it holds even if the software switches to fast.
-    [_osd setCheat:MCIIgsSpeedCheat address:MCIIgsSpeedRegister value:MCIIgsSlowValue size:1 enabled:forceNormal];
+    // Other Apple II machines use the same bit of their a2_config port for
+    // something else, so the setting is only ever sent to a IIgs.
+    if (!self.machineIsIIgs)
+    {
+        [_osd removeConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed];
+        return;
+    }
+    BOOL normal = self.iigsRunsAtNormalSpeed;
+    [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed value:(normal ? MCIIgsNormalSpeed : 0)];
 }
 
 - (BOOL)showsEightyColumns

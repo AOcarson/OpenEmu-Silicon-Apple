@@ -109,8 +109,93 @@ index e773e669..8f361163 100644
  	void show_mouse(bool status);
  	virtual bool is_menu_active() override;
  	bool can_paste();
+diff --git a/src/mame/apple/apple2gs.cpp b/src/mame/apple/apple2gs.cpp
+index 6ba27735..2ddd5e2f 100644
+--- a/src/mame/apple/apple2gs.cpp
++++ b/src/mame/apple/apple2gs.cpp
+@@ -565,6 +565,12 @@ private:
+ 	void raise_irq(int irq);
+ 	void lower_irq(int irq);
+ 	void update_speed();
++
++	// OpenEmu: "Apple II software speed: Normal" - 1 MHz except while a disk
++	// drive's motor is on, when the speed register applies as usual (the
++	// firmware runs 3.5" drives at full speed and slows for 5.25" ones).
++	// Like a IIgs whose Control Panel is set to Normal.
++	bool normal_speed_forced() { return (m_sysconfig->read() & 0x08) && !m_motors_active; }
+ 	int get_vpos();
+ 	void process_clock();
+ 
+@@ -591,6 +597,11 @@ private:
+ 			isfast = false;
+ 		}
+ 
++		if (normal_speed_forced())
++		{
++			isfast = false;
++		}
++
+ 		if (isfast)
+ 		{
+ 			m_maincpu->set_unscaled_clock(m_accel_speed);
+@@ -615,6 +626,11 @@ private:
+ 			isfast = false;
+ 		}
+ 
++		if (normal_speed_forced())
++		{
++			isfast = false;
++		}
++
+ 		if (isfast)
+ 		{
+ 			m_maincpu->set_unscaled_clock(A2GS_14M/5);
+@@ -1645,7 +1661,7 @@ void apple2gs_state::machine_reset()
+ 	{
+ 		static const int speeds[4] = { 7000000, 8000000, 12000000, 16000000 };
+ 		m_accel_present = true;
+-		int idxSpeed = (m_sysconfig->read() >> 1);
++		int idxSpeed = (m_sysconfig->read() >> 1) & 3;  // OpenEmu: bit 3 is the speed setting
+ 		m_accel_speed = speeds[idxSpeed];
+ 		m_accel_fast = true;
+ 		accel_full_speed();
+@@ -1703,6 +1719,11 @@ void apple2gs_state::update_speed()
+ 		isfast = false;
+ 	}
+ 
++	if (normal_speed_forced())
++	{
++		isfast = false;
++	}
++
+ 	// prevent unnecessary reschedules by only setting this if it changed
+ 	if (isfast != m_last_speed)
+ 	{
+@@ -1747,6 +1768,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
+ 	int scanline = m_screen->vpos();
+ 	m_screen->update_partial(scanline);
+ 
++	// OpenEmu: pick up a change to the speed setting (see normal_speed_forced)
++	if (scanline == 0)
++	{
++		update_speed();
++	}
++
+ 	if ((scanline % 8) == 0)
+ 	{
+ 		#if !RUN_ADB_MICRO
+@@ -4823,6 +4850,9 @@ INPUT_PORTS_START( apple2gs )
+ 	PORT_CONFSETTING(0x03, "8 MHz ZipGS")
+ 	PORT_CONFSETTING(0x05, "12 MHz ZipGS")
+ 	PORT_CONFSETTING(0x07, "16 MHz ZipGS")
++	PORT_CONFNAME(0x08, 0x00, "Apple II software speed")
++	PORT_CONFSETTING(0x00, "As set by the software (Fast)")
++	PORT_CONFSETTING(0x08, "Normal (1 MHz, disks at full speed)")
+ INPUT_PORTS_END
+ 
+ void apple2gs_state::apple2gs(machine_config &config)
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 89e30052..c7625fb5 100644
+index 89e30052..941feb23 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
 @@ -49,6 +49,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
@@ -147,15 +232,19 @@ index 89e30052..c7625fb5 100644
  
  	// delegate
  	id <OSDDelegate> m_delegate;
-@@ -216,6 +226,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -214,8 +224,11 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	InputClass *_keyboard;
+ 
  	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
++	NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_configOverrides; // tag -> [mask, value] pairs
++	BOOL _configDirty;
  
  	bool _isEmpty;
 +	bool _luaStarted;
  }
  
  + (void)initialize
-@@ -239,7 +250,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -239,7 +252,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  
  	_manager = mame_machine_manager::instance(*_options.options, *_osd);
  	_manager->start_http_server();
@@ -165,7 +254,15 @@ index 89e30052..c7625fb5 100644
  
  	// arbitrary size
  	_maxBufferSize = NSMakeSize(2048, 2048);
-@@ -443,6 +455,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -426,6 +440,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	_keyboard = nil;
+ 	_supportsSave = NO;
+ 	@synchronized (self) { [_activeCheats removeAllObjects]; }
++	@synchronized (self) { _configDirty = YES; }  // the next machine needs them too
+ 
+ 	_manager->set_machine(nullptr);
+ 
+@@ -443,6 +458,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	}
  }
  
@@ -197,7 +294,7 @@ index 89e30052..c7625fb5 100644
  - (BOOL)_initializeGame:(NSError **)error
  {
  	[self _freeMachine];
-@@ -465,6 +502,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -465,6 +505,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  		valid.check_shared_source(*_gameDriver);
  	}
  
@@ -206,7 +303,81 @@ index 89e30052..c7625fb5 100644
  	_config = new machine_config(*_gameDriver, *_options.options);
  	_machine = new running_machine(*_config, *_manager);
  	_manager->set_machine(_machine);
-@@ -599,6 +638,17 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -559,6 +601,69 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	}
+ }
+ 
++- (void)setConfigPort:(NSString *)tag mask:(uint32_t)mask value:(uint32_t)value
++{
++	@synchronized (self) {
++		if (!_configOverrides) _configOverrides = [NSMutableDictionary new];
++		NSMutableArray<NSNumber *> *pairs = [_configOverrides[tag] mutableCopy] ?: [NSMutableArray new];
++		BOOL replaced = NO;
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			if (pairs[i].unsignedIntValue == mask) {
++				pairs[i + 1] = @(value);
++				replaced = YES;
++			}
++		}
++		if (!replaced) {
++			[pairs addObject:@(mask)];
++			[pairs addObject:@(value)];
++		}
++		_configOverrides[tag] = pairs;
++		_configDirty = YES;
++	}
++}
++
++- (void)removeConfigPort:(NSString *)tag mask:(uint32_t)mask
++{
++	@synchronized (self) {
++		NSMutableArray<NSNumber *> *pairs = [_configOverrides[tag] mutableCopy];
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			if (pairs[i].unsignedIntValue == mask) {
++				[pairs removeObjectsInRange:NSMakeRange(i, 2)];
++				break;
++			}
++		}
++		if (pairs) _configOverrides[tag] = pairs;
++	}
++}
++
++- (void)_applyConfigOverrides
++{
++	NSDictionary<NSString *, NSArray<NSNumber *> *> *overrides;
++	@synchronized (self) {
++		if (!_configDirty || !_machine) return;
++		_configDirty = NO;
++		overrides = [_configOverrides copy];
++	}
++
++	for (NSString *tag in overrides) {
++		auto const found = _machine->ioport().ports().find(std::string(tag.UTF8String));
++		if (found == _machine->ioport().ports().end()) continue;
++		ioport_port *port = found->second.get();
++		NSArray<NSNumber *> *pairs = overrides[tag];
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			ioport_value mask = pairs[i].unsignedIntValue;
++			ioport_value value = pairs[i + 1].unsignedIntValue;
++			for (ioport_field &field : port->fields()) {
++				if (field.mask() != mask) continue;
++				ioport_field::user_settings settings;
++				field.get_user_settings(settings);
++				settings.value = value & mask;
++				field.set_user_settings(settings);
++			}
++		}
++	}
++}
++
+ - (void)_applyCheats
+ {
+ 	NSDictionary *cheats;
+@@ -596,9 +701,21 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 		};
+ 	}
+ 
++	[self _applyConfigOverrides];
  	[self _applyCheats];
  	_machine->headless_run();
  
@@ -224,7 +395,7 @@ index 89e30052..c7625fb5 100644
  	return YES;
  }
  
-@@ -613,6 +663,105 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -613,6 +730,105 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _initializeGame:nil];
  }
  
@@ -330,7 +501,7 @@ index 89e30052..c7625fb5 100644
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -775,18 +924,32 @@ void headless_osd_interface::update_dimensions()
+@@ -775,18 +991,32 @@ void headless_osd_interface::update_dimensions()
  	s32 temp_width, temp_height;
  	m_target->compute_minimum_size(temp_width, temp_height);
  	osd_dim new_size(temp_width, temp_height);
@@ -367,7 +538,7 @@ index 89e30052..c7625fb5 100644
  
  #if 0
  	{
-@@ -820,12 +983,11 @@ void headless_osd_interface::update_dimensions()
+@@ -820,12 +1050,11 @@ void headless_osd_interface::update_dimensions()
  	}
  #endif
  
@@ -381,7 +552,7 @@ index 89e30052..c7625fb5 100644
  	{
  		// for multiple screens or those with artwork, use the full dimensions
  		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
-@@ -856,6 +1018,45 @@ void headless_osd_interface::update_dimensions()
+@@ -856,6 +1085,45 @@ void headless_osd_interface::update_dimensions()
  			aspect.first, aspect.second)];
  }
  
@@ -427,7 +598,7 @@ index 89e30052..c7625fb5 100644
  void headless_osd_interface::update(bool skip_redraw)
  {
  	// check if the games video mode has changed
-@@ -927,6 +1128,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
+@@ -927,6 +1195,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
  //				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_ESC, input_seq::or_code, JOYCODE_SELECT, JOYCODE_START);
  //				break;
  
@@ -450,7 +621,7 @@ index 89e30052..c7625fb5 100644
  			// leave everything else alone
  			default:
  				break;
-@@ -1110,6 +1327,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -1110,6 +1394,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  
@@ -510,7 +681,7 @@ index 89e30052..c7625fb5 100644
  
  #define PATH_PROPERTY(OPT, SET, GET) \
 diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
-index a8ef9ff6..3966099a 100644
+index a8ef9ff6..3181e294 100644
 --- a/src/osd/headless/public/headless.h
 +++ b/src/osd/headless/public/headless.h
 @@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
@@ -522,7 +693,25 @@ index a8ef9ff6..3966099a 100644
  };
  
  @class OSD, AuditResult, AuditRecord, Device;
-@@ -121,6 +123,44 @@ OE_EXPORTED_CLASS
+@@ -114,6 +116,17 @@ OE_EXPORTED_CLASS
+ /// Enable or disable a per-frame constant-write cheat.
+ - (void)setCheat:(uint32_t)index address:(uint32_t)address value:(uint32_t)value size:(uint8_t)size enabled:(BOOL)enabled;
+ 
++/// Sets a configuration setting of the machine (a PORT_CONFNAME field, as in
++/// MAME's Machine Configuration menu): the field with `mask` in the port
++/// `tag` (e.g. @":a2_config") takes `value`. Kept across machine restarts and
++/// re-applied over whatever the machine's cfg file restored; ignored by
++/// machines without that port.
++- (void)setConfigPort:(NSString *)tag mask:(uint32_t)mask value:(uint32_t)value;
++
++/// Stops applying a setting made with setConfigPort:mask:value: (from the
++/// next machine start; the running machine keeps its current value).
++- (void)removeConfigPort:(NSString *)tag mask:(uint32_t)mask;
++
+ #pragma mark - execution
+ 
+ - (BOOL)execute;
+@@ -121,6 +134,44 @@ OE_EXPORTED_CLASS
  - (void)scheduleHardReset;
  - (void)setBuffer:(void *)buffer size:(NSSize)size;
  
