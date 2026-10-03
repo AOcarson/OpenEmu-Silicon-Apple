@@ -24,24 +24,9 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <OpenEmuBase/OEGameCore.h>
-#import "OEApple2SystemResponderClient.h"
-#import "OEApple2GSSystemResponderClient.h"
-#import "OEC64SystemResponderClient.h"
-#import "OEC128SystemResponderClient.h"
-#import "OEMacSystemResponderClient.h"
-#import "osd.h"
+#import <OpenEmuSystem/OpenEmuSystem.h>
 
-/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
- *
- *  One MAME build with the Apple //e, Apple IIgs, Commodore 64, Commodore
- *  128 and Macintosh Plus drivers serves the matching five OpenEmu systems. Per system, the core picks the MAME
- *  machine, maps the Mac keyboard onto the emulated one, routes the launched
- *  file to the right MAME device, and offers per-game settings (joystick,
- *  machine model, disk drives, arbitrary MAME options and Lua plugins)
- *  through OpenEmu's in-game Display Mode menu. */
 OE_EXPORTED_CLASS
-@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
+@interface OEMacSystemController : OESystemController
 
 @end

@@ -24,24 +24,37 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <OpenEmuBase/OEGameCore.h>
-#import "OEApple2SystemResponderClient.h"
-#import "OEApple2GSSystemResponderClient.h"
-#import "OEC64SystemResponderClient.h"
-#import "OEC128SystemResponderClient.h"
-#import "OEMacSystemResponderClient.h"
-#import "osd.h"
+#import <Foundation/Foundation.h>
 
-/*! Home computers on the OpenEmu-Silicon headless MAME 0.250 library.
+@protocol OESystemResponderClient;
+
+/*! Controls exposed to OpenEmu's controller preferences for the Macintosh.
  *
- *  One MAME build with the Apple //e, Apple IIgs, Commodore 64, Commodore
- *  128 and Macintosh Plus drivers serves the matching five OpenEmu systems. Per system, the core picks the MAME
- *  machine, maps the Mac keyboard onto the emulated one, routes the launched
- *  file to the right MAME device, and offers per-game settings (joystick,
- *  machine model, disk drives, arbitrary MAME options and Lua plugins)
- *  through OpenEmu's in-game Display Mode menu. */
-OE_EXPORTED_CLASS
-@interface MAMEComputersGameCore : OEGameCore<OSDDelegate>
+ *  The Mac is driven with the Mac's own keyboard and pointer, forwarded by
+ *  the responder; these controls let a gamepad button (or a key) click the
+ *  mouse button and open the MAME menu. */
+typedef enum
+{
+    OEMacMouseButton,
+    OEMacMAMEMenu,
+    OEMacButtonCount
+} OEMacButton;
+
+@protocol OEMacSystemResponderClient <OESystemResponderClient, NSObject>
+
+- (oneway void)didPushMacButton:(OEMacButton)button forPlayer:(NSUInteger)player;
+- (oneway void)didReleaseMacButton:(OEMacButton)button forPlayer:(NSUInteger)player;
+
+/*! Raw Mac keyboard events, as USB HID keyboard usage codes. */
+- (oneway void)keyDown:(NSUInteger)keyCode;
+- (oneway void)keyUp:(NSUInteger)keyCode;
+
+/*! The Mac pointer over the game, in OpenEmu's game-view coordinates (the
+ *  core turns successive points into mouse movement). */
+- (oneway void)mouseMovedAtPoint:(OEIntPoint)point;
+- (oneway void)leftMouseDownAtPoint:(OEIntPoint)point;
+- (oneway void)leftMouseUp;
+- (oneway void)rightMouseDownAtPoint:(OEIntPoint)point;
+- (oneway void)rightMouseUp;
 
 @end

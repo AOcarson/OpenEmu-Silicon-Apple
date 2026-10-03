@@ -412,7 +412,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.3;
+				CURRENT_PROJECT_VERSION = 0.250.4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
@@ -422,6 +422,7 @@
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 64\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIgs\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 128\"",
+					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Macintosh\"",
 					"$(SRCROOT)/deps/mame/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;
@@ -442,7 +443,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.3;
+				CURRENT_PROJECT_VERSION = 0.250.4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
@@ -452,6 +453,7 @@
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 64\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIgs\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 128\"",
+					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Macintosh\"",
 					"$(SRCROOT)/deps/mame/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;

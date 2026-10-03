@@ -85,7 +85,18 @@ static NSInteger OEWozDiskType(OEFile *file)
         const uint8_t *b = header.bytes;
         uint32_t dataSize = ((uint32_t)b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
         BOOL magic = b[0x12] == 0x01 && b[0x13] == 0x00;
-        return (magic && (dataSize == OEApple2GSDisk800K || dataSize == OEApple2GSDisk400K)) ? OEFileSupportYes : OEFileSupportNo;
+        if (!magic || (dataSize != OEApple2GSDisk800K && dataSize != OEApple2GSDisk400K))
+            return OEFileSupportNo;
+        // Mac disks come in the same DiskCopy images; theirs hold an HFS
+        // ("BD") or MFS (0xD2D7) volume, signed at the start of block 2.
+        NSData *volume = [file readDataInRange:NSMakeRange(84 + 1024, 2)];
+        if (volume.length == 2)
+        {
+            const uint8_t *v = volume.bytes;
+            if ((v[0] == 'B' && v[1] == 'D') || (v[0] == 0xD2 && v[1] == 0xD7))
+                return OEFileSupportNo;
+        }
+        return OEFileSupportYes;
     }
 
     return OEFileSupportNo;

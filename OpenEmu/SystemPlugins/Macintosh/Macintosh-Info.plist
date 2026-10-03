@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSPrincipalClass</key>
+	<string>OEMacSystemController</string>
+	<key>OEControlListKey</key>
+	<array>
+		<array>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Mouse Button</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEMacMouseButton</string>
+			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>MAME Menu</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEMacMAMEMenu</string>
+			</dict>
+		</array>
+	</array>
+	<key>OEFileSuffixes</key>
+	<array>
+		<string>dc</string>
+		<string>dc42</string>
+		<string>diskcopy</string>
+		<string>dsk</string>
+		<string>image</string>
+		<string>img</string>
+		<string>moof</string>
+	</array>
+	<key>OEGenericControlNamesKey</key>
+	<array>
+		<string>OEMacMouseButton</string>
+		<string>OEMacMAMEMenu</string>
+	</array>
+	<key>OENumberOfPlayersKey</key>
+	<integer>1</integer>
+	<key>OEResponderClassKey</key>
+	<string>OEMacSystemResponder</string>
+	<key>OESystemIcon</key>
+	<string>mac_library</string>
+	<key>OESystemIdentifier</key>
+	<string>openemu.system.mac</string>
+	<key>OESystemMedia</key>
+	<array>
+		<string>OESystemMediaFloppyDisk</string>
+	</array>
+	<key>OESystemName</key>
+	<string>Macintosh</string>
+	<key>OESystemType</key>
+	<string>OESystemTypeComputer</string>
+</dict>
+</plist>

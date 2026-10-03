@@ -39,12 +39,14 @@ typedef NS_ENUM(NSInteger, MCSystem)
     MCSystemApple2GS,
     MCSystemC64,
     MCSystemC128,
+    MCSystemMac,
 };
 
 static NSString *const MCSystemIdentifierApple2   = @"openemu.system.apple2";
 static NSString *const MCSystemIdentifierApple2GS = @"openemu.system.apple2gs";
 static NSString *const MCSystemIdentifierC64      = @"openemu.system.c64";
 static NSString *const MCSystemIdentifierC128     = @"openemu.system.c128";
+static NSString *const MCSystemIdentifierMac      = @"openemu.system.mac";
 
 #pragma mark - Settings
 
@@ -59,6 +61,7 @@ static NSString *const MCSettingAutostart        = @"Autostart";                
 static NSString *const MCSettingScreen           = @"Screen";                    // C128: "40" or "80", default "40"
 static NSString *const MCSettingIIgsSpeed        = @"IIgsSpeed";                 // IIgs machine: "normal" (1 MHz) or "fast" (2.8 MHz)
 static NSString *const MCSettingJoystickRange    = @"JoystickRange";             // IIgs machine: percent, 50-100, default 100
+static NSString *const MCSettingStartupDisk      = @"StartupDisk";               // Mac: "auto", "always" or "never", default "auto"
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
 static NSString *const MCSettingDisabledPlugins  = @"DisabledMAMEPlugins";       // [ plugin folder name ], removed
@@ -82,6 +85,7 @@ static NSString *const MCModeMAMEMenu     = @"mc.mamemenu";
 static NSString *const MCModeScreen       = @"mc.screen";
 static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
 static NSString *const MCModeJoystickRange = @"mc.joystickrange";
+static NSString *const MCModeStartupDisk  = @"mc.startupdisk";
 
 // The IIgs's "Apple II software speed" setting, which the core's MAME patch
 // adds to the IIgs's Machine Configuration: Normal keeps the machine at
@@ -382,6 +386,58 @@ static const MCKeyMapping C128KeyMap[] =
     KEY(0xE6, F7,     "ALT (Right Option)"),
 };
 
+// Macintosh Plus: MAME's M0110A keyboard. MAME puts the Mac's Command key
+// on the PC's left Control, so the Mac's own Command key is mapped there;
+// Option is Option. The Plus keyboard has no Control or Esc key, and its
+// keypad has Clear and = where a Mac extended keyboard has them.
+static const MCKeyMapping MacKeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x2A, BACKSPACE,  "Backspace (Delete)"),
+    KEY(0x2B, TAB,        "Tab"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "-"),
+    KEY(0x2E, EQUALS,     "="),
+    KEY(0x2F, OPENBRACE,  "["),
+    KEY(0x30, CLOSEBRACE, "]"),
+    KEY(0x31, BACKSLASH,  "\\"),
+    KEY(0x33, COLON,      ";"),
+    KEY(0x34, QUOTE,      "'"),
+    KEY(0x35, TILDE,      "`"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    KEY(0x39, CAPSLOCK,   "Caps Lock"),
+
+    MC_UI_TOGGLE,
+
+    KEY(0x4F, RIGHT, "Right"),
+    KEY(0x50, LEFT,  "Left"),
+    KEY(0x51, DOWN,  "Down"),
+    KEY(0x52, UP,    "Up"),
+
+    KEY(0x53, NUMLOCK,    "Keypad Clear"),
+    KEY(0x54, SLASH_PAD,  "Keypad /"),
+    KEY(0x55, ASTERISK,   "Keypad *"),
+    KEY(0x56, MINUS_PAD,  "Keypad -"),
+    KEY(0x57, PLUS_PAD,   "Keypad +"),
+    KEY(0x58, ENTER_PAD,  "Keypad Enter"),
+    KEY(0x59, 1_PAD, "Keypad 1"), KEY(0x5A, 2_PAD, "Keypad 2"), KEY(0x5B, 3_PAD, "Keypad 3"),
+    KEY(0x5C, 4_PAD, "Keypad 4"), KEY(0x5D, 5_PAD, "Keypad 5"), KEY(0x5E, 6_PAD, "Keypad 6"),
+    KEY(0x5F, 7_PAD, "Keypad 7"), KEY(0x60, 8_PAD, "Keypad 8"), KEY(0x61, 9_PAD, "Keypad 9"),
+    KEY(0x62, 0_PAD, "Keypad 0"), KEY(0x63, DEL_PAD, "Keypad ."),
+    KEY(0x67, EQUALS_PAD, "Keypad ="),
+
+    KEY(0xE1, LSHIFT,   "Shift"),
+    KEY(0xE2, LALT,     "Option"),
+    KEY(0xE3, LCONTROL, "Command"),
+    KEY(0xE5, RSHIFT,   "Shift"),
+    KEY(0xE6, RALT,     "Option"),
+    KEY(0xE7, LCONTROL, "Command"),
+};
+
 // While one of MAME's menus is open the keyboard types PC keys, so the menu
 // works the same on every machine: arrows move, Return selects, Esc goes
 // back, Tab closes, Delete clears an input assignment.
@@ -464,6 +520,7 @@ typedef struct
 } MCMachine;
 
 static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
+static NSSet<NSString *> *MCMacDiskExtensions(void);
 
 /*! A game's disk images: the launched file plus sibling images in the same
  *  folder that share its name apart from a disk/side marker, e.g.
@@ -480,7 +537,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 #pragma mark - Core
 
 @interface MAMEComputersGameCore () <OEApple2SystemResponderClient, OEApple2GSSystemResponderClient,
-                                     OEC64SystemResponderClient, OEC128SystemResponderClient>
+                                     OEC64SystemResponderClient, OEC128SystemResponderClient,
+                                     OEMacSystemResponderClient>
 {
     MCSystem _system;
 
@@ -509,6 +567,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     double  _mouseAccum[2];      // screen pixels since the last latch
     int32_t _mouseDelta[2];      // this frame's movement, MAME units
     int32_t _mouseButtons[2];
+    BOOL    _hostMouseDown;      // the Mac's own (left) mouse button
+    BOOL    _padMouseDown;       // a control bound to Mac "Mouse Button"
     BOOL    _mouseHasLast;
     OEIntPoint _mouseLast;
 
@@ -527,6 +587,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
     NSString  *_launchPath;
     BOOL       _launchedFromDisk;
     BOOL       _eightBitDisk, _eightBitDiskChecked;  // see iigsRunsAtNormalSpeed
+    NSString  *_macStartupDisk;  // this game's copy of the startup disk in drive 1, or nil
     MCDiskSet *_disks;
     NSString  *_drive1Path;    // may be a file inserted from outside the set
     NSInteger  _drive2Index;
@@ -576,6 +637,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
 - (BOOL)isCommodore { return _system == MCSystemC64 || _system == MCSystemC128; }
 - (BOOL)isC128      { return _system == MCSystemC128; }
 - (BOOL)isApple2GS  { return _system == MCSystemApple2GS; }
+- (BOOL)isMac       { return _system == MCSystemMac; }
+/*! Machines driven with the Mac's pointer: the IIgs and the Macintosh. */
+- (BOOL)hasMouse    { return self.isApple2GS || self.isMac; }
+/*! The Apple II family (IIe and IIgs systems), which has the game port. */
+- (BOOL)isApple2Family { return _system == MCSystemApple2 || _system == MCSystemApple2GS; }
 
 - (NSString *)systemFolderName
 {
@@ -584,6 +650,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         case MCSystemApple2GS: return @"Apple IIgs";
         case MCSystemC64:      return @"Commodore 64";
         case MCSystemC128:     return @"Commodore 128";
+        case MCSystemMac:      return @"Macintosh";
         default:               return @"Apple IIe";
     }
 }
@@ -597,6 +664,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         case MCSystemApple2GS: return @"apple2gs";
         case MCSystemC64:      return @"c64p";
         case MCSystemC128:     return @"c128p";
+        case MCSystemMac:      return @"macplus";
         default:               return @"apple2ee";
     }
 }
@@ -619,6 +687,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         case MCSystemApple2GS: MC_MAP(Apple2GSKeyMap);
         case MCSystemC64:      MC_MAP(C64KeyMap);
         case MCSystemC128:     MC_MAP(C128KeyMap);
+        case MCSystemMac:      MC_MAP(MacKeyMap);
         default:               MC_MAP(Apple2KeyMap);
     }
 #undef MC_MAP
@@ -635,6 +704,8 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system);
         case MCSystemC64:
         case MCSystemC128:
             return [NSSet setWithObjects:@"d64", @"g64", @"x64", @"d71", @"d81", nil];
+        case MCSystemMac:
+            return MCMacDiskExtensions();
         default:
             return [NSSet setWithObjects:@"dsk", @"do", @"po", @"nib", @"woz", nil];
     }
@@ -663,6 +734,112 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     return NO; // .2mg, DiskCopy: 3.5"
 }
 
+#pragma mark - Macintosh startup disk
+
+static NSSet<NSString *> *MCMacDiskExtensions(void)
+{
+    // Keep in sync with OEFileSuffixes in the Macintosh system plugin.
+    return [NSSet setWithObjects:@"dsk", @"img", @"image", @"dc", @"dc42", @"diskcopy", @"moof", nil];
+}
+
+/*! YES when a Mac floppy image starts with boot blocks (the "LK" signature),
+ *  so the Mac can start up from it. Raw images (.dsk, .img, .image) begin
+ *  with the disk's first block; DiskCopy 4.2 images after an 84-byte header.
+ *  MOOF images are bit-level copies that would need decoding: assumed
+ *  bootable. */
+static BOOL MCMacDiskIsBootable(NSString *path)
+{
+    NSString *ext = path.pathExtension.lowercaseString;
+    if ([ext isEqualToString:@"moof"])
+        return YES;
+
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    if (fh == nil)
+        return YES;  // let MAME report the problem
+    NSData *head = [fh readDataOfLength:84 + 2];
+    [fh closeFile];
+    if (head.length < 2)
+        return YES;
+
+    const uint8_t *b = (const uint8_t *)head.bytes;
+    // DiskCopy 4.2: name length < 64 at 0, magic 0x0100 at 0x52.
+    BOOL diskCopy = head.length >= 86 && b[0] < 64 && b[0x52] == 0x01 && b[0x53] == 0x00;
+    const uint8_t *data = diskCopy ? b + 84 : b;
+    return data[0] == 'L' && data[1] == 'K';
+}
+
+/*! Where the user keeps the System disk the Mac starts up from when a game's
+ *  own disk can't: <core support folder>/Startup Disks/Macintosh. */
+- (NSString *)macStartupDiskFolder
+{
+    return [[self.supportDirectoryPath stringByAppendingPathComponent:@"Startup Disks"]
+            stringByAppendingPathComponent:@"Macintosh"];
+}
+
+/*! The startup disk to put in drive 1 for this game, or nil to start up
+ *  from the game's own disk. "auto" (the default) uses it only when the
+ *  game's disk has no boot blocks; "always" and "never" force the choice.
+ *  The disk is the first image in the startup disk folder, by name. Decided
+ *  when the machine starts (see -startMachineWithError:). */
+- (NSString *)chooseMacStartupDisk
+{
+    if (!self.isMac || !_launchedFromDisk)
+        return nil;
+
+    id setting = _settings[MCSettingStartupDisk];
+    NSString *mode = [setting isKindOfClass:[NSString class]] ? setting : @"auto";
+    if ([mode isEqualToString:@"never"])
+        return nil;
+    if ([mode isEqualToString:@"auto"] && MCMacDiskIsBootable(_launchPath))
+        return nil;
+
+    NSString *folder = self.macStartupDiskFolder;
+    NSArray<NSString *> *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:folder error:nil]
+                                  sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    for (NSString *name in names)
+    {
+        if ([name hasPrefix:@"."])
+            continue;  // Finder's ._ files and the like
+        if ([MCMacDiskExtensions() containsObject:name.pathExtension.lowercaseString])
+            return [self perGameCopyOfStartupDisk:[folder stringByAppendingPathComponent:name]];
+    }
+    return nil;
+}
+
+/*! The Mac writes to the disk it starts up from, so each game gets its own
+ *  copy of the startup disk (kept in sync with the original when that is
+ *  replaced): games can't spoil it for each other, and a save state always
+ *  finds the disk as it left it. */
+- (NSString *)perGameCopyOfStartupDisk:(NSString *)original
+{
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *folder = [[[self.supportDirectoryPath stringByAppendingPathComponent:@"Startup Disks"]
+                         stringByAppendingPathComponent:@"Macintosh Copies"]
+                        stringByAppendingPathComponent:_gameFolderName];
+    NSString *copy = [folder stringByAppendingPathComponent:original.lastPathComponent];
+
+    NSDate *originalDate = [[fm attributesOfItemAtPath:original error:nil] fileModificationDate];
+    NSDate *markerDate = [[fm attributesOfItemAtPath:[copy stringByAppendingString:@".source-date"] error:nil] fileModificationDate];
+    BOOL current = [fm fileExistsAtPath:copy] && originalDate && markerDate && [markerDate isEqualToDate:originalDate];
+    if (current)
+        return copy;
+
+    NSError *error = nil;
+    [fm createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
+    [fm removeItemAtPath:copy error:nil];
+    if (![fm copyItemAtPath:original toPath:copy error:&error])
+    {
+        os_log_error(OE_CORE_LOG, "could not copy the startup disk for this game (%{public}@); using the original", error);
+        return original;
+    }
+    // Remembers which version of the original the copy came from.
+    NSString *marker = [copy stringByAppendingString:@".source-date"];
+    [fm createFileAtPath:marker contents:[NSData data] attributes:nil];
+    if (originalDate)
+        [fm setAttributes:@{ NSFileModificationDate: originalDate } ofItemAtPath:marker error:nil];
+    return copy;
+}
+
 /*! MAME image devices for the disk drives, drive 1 first. */
 - (NSArray<NSString *> *)driveDevices
 {
@@ -675,6 +852,9 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
         case MCSystemC64:
         case MCSystemC128:
             return @[ @"flop" ];
+        case MCSystemMac:
+            // With a startup disk in drive 1, the game's disks go in drive 2.
+            return _macStartupDisk ? @[ @"flop2" ] : @[ @"flop1", @"flop2" ];
         default:
             return @[ @"flop1", @"flop2" ];
     }
@@ -687,6 +867,12 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     if (self.isApple2GS)
     {
         return @[ @[ MCIsFiveInchAppleDisk(path) ? @"flop1" : @"flop3", path ] ];
+    }
+    if (self.isMac)
+    {
+        if (_macStartupDisk)
+            return @[ @[ @"flop1", _macStartupDisk ], @[ @"flop2", path ] ];
+        return @[ @[ @"flop1", path ] ];
     }
     if (!self.isCommodore)
     {
@@ -864,7 +1050,7 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     _menuMode = NO;
     _screenPending = self.isC128;
 
-    if (self.isApple2GS)
+    if (self.hasMouse)
     {
         InputDevice *mouse = [_osd.mouse addDeviceNamed:@"OpenEmu Mouse"];
         [mouse addItemNamed:@"X Axis" id:InputItemID_XAXIS getter:mc_get_state context:&_mouseDelta[0]];
@@ -974,6 +1160,7 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
         MCSystemIdentifierApple2GS: @(MCSystemApple2GS),
         MCSystemIdentifierC64:      @(MCSystemC64),
         MCSystemIdentifierC128:     @(MCSystemC128),
+        MCSystemIdentifierMac:      @(MCSystemMac),
     };
     _system = (MCSystem)(systems[self.systemIdentifier] ?: @(MCSystemApple2)).integerValue;
     _launchPath = path;
@@ -984,6 +1171,13 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     _drive2Index = MCDriveEmpty;
 
     [self loadSettingsNamed:_disks.settingsName];
+
+    if (self.isMac)
+    {
+        // Made up front so it's there to find; see -chooseMacStartupDisk.
+        [[NSFileManager defaultManager] createDirectoryAtPath:self.macStartupDiskFolder
+                                  withIntermediateDirectories:YES attributes:nil error:nil];
+    }
 
     os_log_info(OE_CORE_LOG, "loading %{public}@ on %{public}@ (%lu disk(s) in set), machine %{public}@, settings %{public}@",
                 path.lastPathComponent, self.systemIdentifier, (unsigned long)_disks.paths.count, self.machine, _settingsPath);
@@ -1023,6 +1217,14 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     opts.unevenStretch = NO;
     opts.keepAspect = YES;
     _osd.verboseOutput = NO;
+
+    // Before any media option: it decides which drive the game goes in.
+    _macStartupDisk = [self chooseMacStartupDisk];
+    if (_macStartupDisk)
+        os_log_info(OE_CORE_LOG, "starting up from %{public}@ with the game in drive 2", _macStartupDisk);
+    else if (self.isMac && _launchedFromDisk && !MCMacDiskIsBootable(_launchPath))
+        os_log_info(OE_CORE_LOG, "the game's disk has no boot blocks; put a System disk in %{public}@",
+                    self.macStartupDiskFolder);
 
     NSString *machine = self.machine;
     AuditResult *audit = nil;
@@ -1067,8 +1269,8 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
     MC_SET(@"1", @"plugins");
     MC_SET(self.pluginOptionValue, @"plugin");
 
-    // The IIgs needs its mouse; MAME only reads mice when asked to.
-    if (self.isApple2GS)
+    // The IIgs and the Mac need their mouse; MAME only reads mice when asked to.
+    if (self.hasMouse)
     {
         MC_SET(@"1", @"mouse");
     }
@@ -1081,9 +1283,16 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
         MC_SET(@"joy", @"joy1");
         MC_SET(@"joy", @"joy2");
     }
-    else
+    else if (self.isApple2Family)
     {
         MC_SET(self.joystickConnected ? @"joy" : @"", @"gameio");
+    }
+    else if (self.isMac)
+    {
+        // The Mac Plus keyboard (with arrow keys and keypad) on every Mac
+        // model, so MacKeyMap fits them all; the 128K and 512Ke otherwise
+        // get the original keyboard and keypad.
+        MC_SET(@"usp", @"kbd");
     }
 
     NSDictionary *custom = _settings[MCSettingMAMEOptions];
@@ -1117,6 +1326,8 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
         }
     }
 
+    // (A Mac starting up from a startup disk has its game in drive 2
+    // already, and only that drive is listed.)
     if (self.driveDevices.count > 1 && _launchedFromDisk)
     {
         NSString *drive2 = (_drive2Index == MCDriveEmpty) ? @"" : _disks.paths[_drive2Index];
@@ -1460,6 +1671,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         { @"c128p", @"Commodore 128 (PAL)" },
         { @"c128",  @"Commodore 128 (NTSC)" },
     };
+    static MCMachine mac[] = {
+        { @"macplus",  @"Macintosh Plus" },
+        { @"mac512ke", @"Macintosh 512Ke" },
+        { @"mac128k",  @"Macintosh 128K (400K disks only)" },
+    };
 
     MCMachine *list = apple2;
     size_t count = sizeof(apple2) / sizeof(apple2[0]);
@@ -1468,6 +1684,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         case MCSystemApple2GS: list = apple2gs; count = sizeof(apple2gs) / sizeof(apple2gs[0]); break;
         case MCSystemC64:      list = c64;      count = sizeof(c64) / sizeof(c64[0]);           break;
         case MCSystemC128:     list = c128;     count = sizeof(c128) / sizeof(c128[0]);         break;
+        case MCSystemMac:      list = mac;      count = sizeof(mac) / sizeof(mac[0]);           break;
         default: break;
     }
 
@@ -1500,6 +1717,16 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
                 MCChoice(@"80 Columns", MCModeScreen, @"80", eighty),
             ])];
         }
+    }
+    else if (self.isMac)
+    {
+        id setting = _settings[MCSettingStartupDisk];
+        NSString *mode = [setting isKindOfClass:[NSString class]] ? setting : @"auto";
+        [modes addObject:MCGroup(@"Startup Disk (restarts)", @[
+            MCChoice(@"Automatic (when the game's disk can't start up)", MCModeStartupDisk, @"auto", [mode isEqualToString:@"auto"]),
+            MCChoice(@"Always Start Up from the Startup Disk", MCModeStartupDisk, @"always", [mode isEqualToString:@"always"]),
+            MCChoice(@"Never (start up from the game's disk)", MCModeStartupDisk, @"never", [mode isEqualToString:@"never"]),
+        ])];
     }
     else
     {
@@ -1626,6 +1853,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     {
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
+    }
+    else if ([key isEqualToString:MCModeStartupDisk] && !state)
+    {
+        NSString *choice = ([value isEqualToString:@"always"] || [value isEqualToString:@"never"]) ? value : @"auto";
+        [self setSetting:choice forKey:MCSettingStartupDisk];
+        [self restartMachine];
     }
     else if ([key isEqualToString:MCModeJoystickRange])
     {
@@ -1808,7 +2041,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
 
     // Apple II Control-Reset from the gamepad/controls binding.
-    if (!self.isCommodore && _resetHeld && (item == InputItemID_LCONTROL || item == InputItemID_F12))
+    if (self.isApple2Family && _resetHeld && (item == InputItemID_LCONTROL || item == InputItemID_F12))
     {
         down = YES;
     }
@@ -2079,14 +2312,43 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     [self setC64Button:(OEC64Button)button pressed:NO forPlayer:player];
 }
 
+// Macintosh
+
+- (oneway void)didPushMacButton:(OEMacButton)button forPlayer:(NSUInteger)player
+{
+    [self setMacButton:button pressed:YES];
+}
+
+- (oneway void)didReleaseMacButton:(OEMacButton)button forPlayer:(NSUInteger)player
+{
+    [self setMacButton:button pressed:NO];
+}
+
+- (void)setMacButton:(OEMacButton)button pressed:(BOOL)pressed
+{
+    switch (button)
+    {
+        case OEMacMouseButton:
+            // A gamepad button or key bound to the mouse button.
+            _padMouseDown = pressed;
+            _mouseButtons[0] = (_hostMouseDown || _padMouseDown) ? 1 : 0;
+            break;
+        case OEMacMAMEMenu:
+            [self menuControlPressed:pressed];
+            break;
+        default:
+            break;
+    }
+}
+
 #pragma mark - Input: mouse
 
-// The IIgs mouse. The C64 and C128 systems send mouse events too, but their
-// mouse (the 1351) isn't wired up here, so only the IIgs uses them.
+// The IIgs and Macintosh mouse. The C64 and C128 systems send mouse events
+// too, but their mouse (the 1351) isn't wired up here, so they are ignored.
 
 - (void)movePointerTo:(OEIntPoint)point
 {
-    if (!self.isApple2GS)
+    if (!self.hasMouse)
         return;
 
     os_unfair_lock_lock(&_mouseLock);
@@ -2105,7 +2367,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 /*! Called on the emulation thread before each frame. */
 - (void)latchMouse
 {
-    if (!self.isApple2GS)
+    if (!self.hasMouse)
         return;
 
     os_unfair_lock_lock(&_mouseLock);
@@ -2126,12 +2388,14 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 {
     // Also sent while dragging.
     [self movePointerTo:point];
+    _hostMouseDown = YES;
     _mouseButtons[0] = 1;
 }
 
 - (oneway void)leftMouseUp
 {
-    _mouseButtons[0] = 0;
+    _hostMouseDown = NO;
+    _mouseButtons[0] = _padMouseDown ? 1 : 0;
 }
 
 - (oneway void)rightMouseDownAtPoint:(OEIntPoint)point

@@ -179,6 +179,7 @@ final class ScreenScraperClient {
         "openemu.system.apple2":       86,   // Apple II
         "openemu.system.apple2gs":    217,   // Apple IIGS
         "openemu.system.c128":         66,   // ScreenScraper lists C128 software under Commodore 64
+        "openemu.system.mac":         146,   // Mac OS (classic Macintosh software)
 
         // Arcade
         "openemu.system.arcade":       75,

@@ -1,12 +1,12 @@
-# Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128 (MAME 0.250)
+# Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128, Macintosh (MAME 0.250)
 
-`MAMEComputers.oecoreplugin` runs Apple //e, Apple IIgs, Commodore 64 and
-Commodore 128 software in OpenEmu using the same headless MAME 0.250 library
-as the Arcade core, built with only those four drivers. One core serves four
-systems, each with its own sidebar entry:
+`MAMEComputers.oecoreplugin` runs Apple //e, Apple IIgs, Commodore 64,
+Commodore 128 and early Macintosh software in OpenEmu using the same headless
+MAME 0.250 library as the Arcade core, built with only those drivers. One
+core serves five systems, each with its own sidebar entry:
 
-- **Apple IIe**, **Apple IIgs** and **Commodore 128** — system plugins in
-  `OpenEmu/SystemPlugins/` added by this fork.
+- **Apple IIe**, **Apple IIgs**, **Commodore 128** and **Macintosh** — system
+  plugins in `OpenEmu/SystemPlugins/` added by this fork.
 - **Commodore 64** — OpenEmu's existing `OpenEmu/SystemPlugins/Commodore 64`,
   which had no core since the libretro bridge was removed.
 
@@ -36,7 +36,7 @@ certificate (a free Apple ID in Xcode › Settings › Accounts › Manage
 Certificates › +), signs with it, so macOS keeps the Input Monitoring
 permission across rebuilds. Quit OpenEmu before opening a new build.
 
-Both systems must be switched on in Settings › Library › Available Libraries.
+Each system must be switched on in Settings › Library › Available Libraries.
 
 `prepare-mame-computers-core.sh` (run by the build script) checks out the
 pinned MAME revision into `MAMEComputers/deps/mame` and applies, in order:
@@ -86,6 +86,14 @@ Copy these zips, unchanged, from a MAME 0.250-compatible set into
 | `c128p.zip` | The PAL machine (the default) looks here; many sets store the same ROMs under both names. |
 | `c1571.zip` | The C128's own 1571 drive; needed even for tapes and cartridges. |
 | `c1581.zip` | Only for `.d81` disks. |
+
+**Macintosh**
+
+| Set | What it is |
+|---|---|
+| `macplus.zip` | Macintosh Plus ROM (the default machine; the Macintosh 512Ke uses it too). |
+| `mackbd_m0110a.zip` | The Mac Plus keyboard's own controller chip. |
+| `mac128k.zip` | Only for the "Macintosh 128K" machine. |
 
 **Commodore 64**
 
@@ -270,6 +278,47 @@ the Commodore key, F1–F8 as printed), plus:
 The arrow keys are the C128's own cursor keys, which work in C128 mode.
 Keys a Mac laptop lacks (Home, End, Page Up/Down) can be moved to any key or
 gamepad button in MAME's Input Settings.
+
+## Macintosh
+
+The Macintosh system is a **Macintosh Plus** (1986: 4 MB of memory, two 800K
+floppy drives, System 1 to 7) — the reference machine for early black-and-white
+Mac games. The Display Mode menu's **Machine** also offers the Macintosh 512Ke
+and the original 128K (400K disks only).
+
+Disk images: `.dsk`, `.img` and `.image` (raw 400K or 800K), DiskCopy
+4.2 (`.dc42`, `.dc`, `.diskcopy`) and Applesauce `.moof`. The library takes a
+file as a Mac disk when it holds a Mac (HFS or MFS) volume or Mac boot blocks,
+so Apple II disks of the same size and extension still go to the Apple IIs.
+
+### Startup disk
+
+Many Mac game disks can't start the Mac on their own: they hold only the game
+and need a System disk to start up from. Put one System disk image (System 6
+or 7.0.1 are good choices for a Mac Plus) in
+
+    ~/Library/Application Support/OpenEmu/MAMEComputers/Startup Disks/Macintosh/
+
+(the core creates the folder the first time a Mac game is opened; with
+several images, the first by name is used). When a game's disk has no boot
+blocks, the Mac then starts up from the System disk in drive 1 with the game
+in drive 2 — open it from the desktop. The Display Mode menu's **Startup
+Disk** setting can make a game always or never use it.
+
+The Mac writes to the disk it starts up from, so each game gets its own copy
+of the System disk (in `Startup Disks/Macintosh Copies/<game>/`), made again
+whenever the original is replaced. Games can't spoil it for each other, and
+save states find the disk as they left it. All three Mac models use the Mac
+Plus keyboard.
+
+### Keyboard and mouse
+
+Command is Command and Option is Option. The Mac Plus keyboard has no Control
+or Esc key (in Mac software Command-. usually stands in for Esc); its keypad
+has Clear (the Mac's Clear key or Num Lock) and =. The Mac's pointer is the
+mouse; as on the IIgs it moves the emulated pointer by the distance moved, so
+the two can drift apart at the edges of the window. A gamepad button (or a
+key) can be bound to **Mouse Button** in OpenEmu's Controls.
 
 ## Choosing the system when importing
 
