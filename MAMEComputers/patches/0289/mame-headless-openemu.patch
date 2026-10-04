@@ -1,0 +1,3807 @@
+diff --git a/scripts/genie.lua b/scripts/genie.lua
+index fa4a5bb6..f48bb021 100644
+--- a/scripts/genie.lua
++++ b/scripts/genie.lua
+@@ -778,7 +778,7 @@ if _OPTIONS["NOWERROR"]==nil then
+ end
+ 
+ -- if we are optimizing, include optimization options
+-if _OPTIONS["OPTIMIZE"] then
++if _OPTIONS["OPTIMIZE"]~=nil and _OPTIONS["OPTIMIZE"]~="0" then
+ 	buildoptions {
+ 		"-O".. _OPTIONS["OPTIMIZE"],
+ 		"-fno-strict-aliasing"
+diff --git a/scripts/src/emu.lua b/scripts/src/emu.lua
+index dd9152e0..95bf0590 100644
+--- a/scripts/src/emu.lua
++++ b/scripts/src/emu.lua
+@@ -305,11 +305,17 @@ dependency {
+ 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/triphsxs.lh" },
+ 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/quadhsxs.lh" },
+ }
+-
++-- HEADLESS HACK : use old smallui ui.bdc
++if _OPTIONS["osd"]=="headless" then
++custombuildtask {
++	{ MAME_DIR .. "src/osd/headless/ui.bdc", GEN_DIR .. "emu/uismall.fh",     {  MAME_DIR .. "scripts/build/file2str.py" }, {"@echo Converting ui.bdc...", PYTHON .. " $(1) $(<) $(@) font_uismall uint8_t" }},
++}
++else
+ custombuildtask {
+ 	{ MAME_DIR .. "scripts/font/NotoSans-Bold.bdc", GEN_DIR .. "emu/uismall.fh", { MAME_DIR .. "scripts/build/file2str.py" }, { "@echo Converting NotoSans-Bold.bdc...", PYTHON .. " $(1) $(<) $(@) font_uismall uint8_t" } },
+ }
+-
++end
++-- HEADLESS HACK
+ custombuildtask {
+ 	{ MAME_DIR .. "src/frontend/mame/ui/uicmd14.png", GEN_DIR .. "emu/ui/uicmd14.fh", { MAME_DIR.. "scripts/build/png2bdc.py",  MAME_DIR .. "scripts/build/file2str.py" }, { "@echo Converting uicmd14.png...", PYTHON .. " $(1) $(<) temp_cmd.bdc", PYTHON .. " $(2) temp_cmd.bdc $(@) font_uicmd14 uint8_t" } },
+ 
+diff --git a/scripts/src/main.lua b/scripts/src/main.lua
+index 70946f47..ded2920a 100644
+--- a/scripts/src/main.lua
++++ b/scripts/src/main.lua
+@@ -22,7 +22,11 @@ else
+ end
+ 	project (projname)
+ 	uuid (os.uuid(_target .. "_" .. _subtarget))
+-	kind "ConsoleApp"
++	if _OPTIONS["osd"] == "headless" then
++		kind "SharedLib"
++	else
++		kind "ConsoleApp"
++	end
+ 
+ 	configuration { "android*" }
+ 		targetprefix "lib"
+@@ -88,6 +92,17 @@ end
+ 
+ 	configuration { }
+ 
++	if _OPTIONS["osd"] == "headless" then
++		targetsuffix "_headless"
++		targetprefix ""
++		if _OPTIONS["targetos"]=="macosx" then
++			targetextension ".dylib"
++		end
++		flags {
++			"ObjcARC",
++		}
++	end
++
+ 	if _OPTIONS["targetos"]=="android" then
+ 		files {
+ 			MAME_DIR .. "src/osd/sdl/android_main.cpp",
+@@ -136,9 +151,13 @@ end
+ 	links {
+ 		"osd_" .. _OPTIONS["osd"],
+ 	}
++-- HEADLESS no qt
++if _OPTIONS["osd"]~="headless" then
+ 	links {
+ 		"qtdbg_" .. _OPTIONS["osd"],
+ 	}
++end
++-- HEADLESS no qt
+ --if (STANDALONE~=true) then
+ 	links {
+ 		"formats",
+@@ -202,10 +221,14 @@ end
+ 			ext_lib("portmidi"),
+ 		}
+ 	end
++	if _OPTIONS["osd"]~="headless" then
++        links {
++            "bgfx",
++            "bimg",
++            "bx",
++        }
++	end
+ 	links {
+-		"bgfx",
+-		"bimg",
+-		"bx",
+ 		"ocore_" .. _OPTIONS["osd"],
+ 	}
+ 
+@@ -238,7 +261,7 @@ if (STANDALONE==true) then
+ end
+ 
+ if (STANDALONE~=true) then
+-	if _OPTIONS["targetos"]=="macosx" and (not override_resources) then
++	if _OPTIONS["targetos"]=="macosx" and (not override_resources) and _OPTIONS["osd"]~="headless" then
+ 		local plistname = _target .. "_" .. _subtarget .. "-Info.plist"
+ 		linkoptions {
+ 			"-sectcreate __TEXT __info_plist " .. _MAKE.esc(GEN_DIR) .. "resource/" .. plistname
+diff --git a/scripts/src/osd/headless.lua b/scripts/src/osd/headless.lua
+new file mode 100644
+index 00000000..7e17226f
+--- /dev/null
++++ b/scripts/src/osd/headless.lua
+@@ -0,0 +1,117 @@
++-- license:BSD-3-Clause
++-- copyright-holders:MAMEdev Team
++
++---------------------------------------------------------------------------
++--
++--   sdl.lua
++--
++--   Rules for the building with SDL
++--
++---------------------------------------------------------------------------
++
++dofile("headless_modules.lua")
++
++function maintargetosdoptions(_target,_subtarget)
++	osdmodulestargetconf()
++end
++
++newoption {
++	trigger = "HEADLESS_INI_PATH",
++	description = "Default search path for .ini files",
++}
++
++BASE_TARGETOS       = "unix"
++SDLOS_TARGETOS      = "unix"
++SDL_NETWORK         = ""
++if _OPTIONS["targetos"]=="macosx" then
++	SDLOS_TARGETOS      = "macosx"
++	SDL_NETWORK         = "pcap"
++end
++
++_OPTIONS["USE_QTDEBUG"] = "0"
++links {
++	"m",
++	"pthread",
++	"util",
++}
++
++project ("osd_" .. _OPTIONS["osd"])
++	targetsubdir(_OPTIONS["target"] .."_" .._OPTIONS["subtarget"])
++	uuid (os.uuid("osd_" .. _OPTIONS["osd"]))
++	kind (LIBTYPE)
++
++	flags {
++		"ObjcARC",
++	}
++
++	dofile("headless_cfg.lua")
++	osdmodulesbuild()
++
++	includedirs {
++		MAME_DIR .. "src/emu",
++		MAME_DIR .. "src/devices", -- accessing imagedev from debugger
++		MAME_DIR .. "src/osd",
++		MAME_DIR .. "src/lib",
++		MAME_DIR .. "src/lib/util",
++		MAME_DIR .. "src/osd/headless",
++		MAME_DIR .. "src/osd/headless/public",
++		MAME_DIR .. "src/osd/modules/file",
++		MAME_DIR .. "src/osd/modules/render",
++		MAME_DIR .. "3rdparty",
++	}
++
++	files {
++		MAME_DIR .. "src/osd/headless/headless.mm",
++		MAME_DIR .. "src/osd/headless/driver.mm",
++		MAME_DIR .. "src/osd/osdepend.h",
++
++        -- headless interface
++		MAME_DIR .. "src/osd/headless/public/osd.h",
++	}
++
++
++
++project ("ocore_" .. _OPTIONS["osd"])
++	targetsubdir(_OPTIONS["target"] .."_" .. _OPTIONS["subtarget"])
++	uuid (os.uuid("ocore_" .. _OPTIONS["osd"]))
++--	kind (LIBTYPE)
++	kind "StaticLib"
++
++	removeflags {
++		"SingleOutputDir",
++	}
++
++	dofile("headless_cfg.lua")
++
++	includedirs {
++		MAME_DIR .. "src/emu",
++		MAME_DIR .. "src/osd",
++		MAME_DIR .. "src/lib",
++		MAME_DIR .. "src/lib/util",
++		MAME_DIR .. "src/osd/headless",
++	}
++
++	if _OPTIONS["targetos"]=="macosx" then
++		BASE_TARGETOS = "unix"
++		SDLOS_TARGETOS = "macosx"
++		SYNC_IMPLEMENTATION = "ntc"
++	end
++
++	files {
++		MAME_DIR .. "src/osd/modules/lib/osdlib_headless.cpp",
++		MAME_DIR .. "src/osd/osdcore.cpp",
++		MAME_DIR .. "src/osd/osdcore.h",
++		MAME_DIR .. "src/osd/strconv.cpp",
++		MAME_DIR .. "src/osd/strconv.h",
++		MAME_DIR .. "src/osd/osdsync.cpp",
++		MAME_DIR .. "src/osd/osdsync.h",
++		MAME_DIR .. "src/osd/modules/osdmodule.cpp",
++		MAME_DIR .. "src/osd/modules/osdmodule.h",
++		MAME_DIR .. "src/osd/modules/lib/osdlib.h",
++		MAME_DIR .. "src/osd/modules/file/posixdir.cpp",
++		MAME_DIR .. "src/osd/modules/file/posixfile.cpp",
++		MAME_DIR .. "src/osd/modules/file/posixfile.h",
++		MAME_DIR .. "src/osd/modules/file/posixptty.cpp",
++		MAME_DIR .. "src/osd/modules/file/posixsocket.cpp",
++	}
++
+diff --git a/scripts/src/osd/headless_cfg.lua b/scripts/src/osd/headless_cfg.lua
+new file mode 100644
+index 00000000..75aa89a8
+--- /dev/null
++++ b/scripts/src/osd/headless_cfg.lua
+@@ -0,0 +1,45 @@
++-- license:BSD-3-Clause
++-- copyright-holders:MAMEdev Team
++
++dofile("headless_modules.lua")
++
++if SDL_NETWORK~="" and not _OPTIONS["DONT_USE_NETWORK"] then
++	defines {
++		"USE_NETWORK",
++		"OSD_NET_USE_" .. string.upper(SDL_NETWORK),
++	}
++end
++
++if _OPTIONS["HEADLESS_INI_PATH"]~=nil then
++	defines {
++		"'INI_PATH=\"" .. _OPTIONS["HEADLESS_INI_PATH"] .. "\"'",
++	}
++end
++
++defines {
++	"SDLMAME_NO_X11",
++	"HEADLESSMAME",
++	"USE_XINPUT=0",
++	"OSD_HEADLESS",
++}
++
++if BASE_TARGETOS=="unix" then
++	defines {
++		"SDLMAME_UNIX",
++		"HEADLESSMAME_UNIX",
++	}
++end
++
++if _OPTIONS["targetos"]=="macosx" then
++	defines {
++		"SDLMAME_DARWIN",
++	}
++end
++
++-- configuration { "macosx" }
++-- 	includedirs {
++-- 		MAME_DIR .. "3rdparty/bx/include/compat/osx",
++-- 	}
++
++configuration { }
++
+diff --git a/scripts/src/osd/headless_modules.lua b/scripts/src/osd/headless_modules.lua
+new file mode 100644
+index 00000000..dd32bdfe
+--- /dev/null
++++ b/scripts/src/osd/headless_modules.lua
+@@ -0,0 +1,219 @@
++-- license:BSD-3-Clause
++-- copyright-holders:MAMEdev Team
++
++---------------------------------------------------------------------------
++--
++--   modules.lua
++--
++--   Rules for the building of modules
++--
++---------------------------------------------------------------------------
++
++function string.starts(String,Start)
++	return string.sub(String,1,string.len(Start))==Start
++end
++
++function addlibfromstring(str)
++	if (str==nil) then return  end
++	for w in str:gmatch("%S+") do
++		if string.starts(w,"-l")==true then
++			links {
++				string.sub(w,3)
++			}
++		end
++	end
++end
++
++function addoptionsfromstring(str)
++	if (str==nil) then return  end
++	for w in str:gmatch("%S+") do
++		if string.starts(w,"-l")==false then
++			linkoptions {
++				w
++			}
++		end
++	end
++end
++
++function pkgconfigcmd()
++	local pkgconfig = os.getenv("PKG_CONFIG")
++	if pkgconfig == nil then
++		return "pkg-config"
++	end
++	return pkgconfig
++end
++
++function osdmodulesbuild()
++
++	removeflags {
++		"SingleOutputDir",
++	}
++
++	files {
++		MAME_DIR .. "src/osd/interface/audio.cpp",
++		MAME_DIR .. "src/osd/interface/audio.h",
++		MAME_DIR .. "src/osd/interface/inputcode.h",
++		MAME_DIR .. "src/osd/interface/inputdev.h",
++		MAME_DIR .. "src/osd/interface/inputfwd.h",
++		MAME_DIR .. "src/osd/interface/inputman.h",
++		MAME_DIR .. "src/osd/interface/inputseq.cpp",
++		MAME_DIR .. "src/osd/interface/inputseq.h",
++		MAME_DIR .. "src/osd/interface/midiport.h",
++		MAME_DIR .. "src/osd/interface/nethandler.cpp",
++		MAME_DIR .. "src/osd/interface/nethandler.h",
++		MAME_DIR .. "src/osd/interface/output.h",
++		MAME_DIR .. "src/osd/interface/uievents.h",
++		--[[
++		MAME_DIR .. "src/osd/watchdog.cpp",
++		MAME_DIR .. "src/osd/watchdog.h",
++		MAME_DIR .. "src/osd/interface/inputcode.h",
++		MAME_DIR .. "src/osd/interface/inputman.h",
++		MAME_DIR .. "src/osd/interface/inputseq.cpp",
++		MAME_DIR .. "src/osd/interface/inputseq.h",
++		MAME_DIR .. "src/osd/modules/debugger/debug_module.h",
++		MAME_DIR .. "src/osd/modules/font/font_module.h",
++		MAME_DIR .. "src/osd/modules/midi/midi_module.h",
++		MAME_DIR .. "src/osd/modules/netdev/netdev_module.h",
++		MAME_DIR .. "src/osd/modules/sound/sound_module.h",
++		MAME_DIR .. "src/osd/modules/diagnostics/diagnostics_module.h",
++		MAME_DIR .. "src/osd/modules/monitor/monitor_module.h",
++		MAME_DIR .. "src/osd/modules/lib/osdobj_common.cpp",
++		MAME_DIR .. "src/osd/modules/lib/osdobj_common.h",
++		MAME_DIR .. "src/osd/modules/diagnostics/none.cpp",
++		MAME_DIR .. "src/osd/modules/debugger/none.cpp",
++		MAME_DIR .. "src/osd/modules/font/font_none.cpp",
++		MAME_DIR .. "src/osd/modules/netdev/taptun.cpp",
++		MAME_DIR .. "src/osd/modules/netdev/pcap.cpp",
++		MAME_DIR .. "src/osd/modules/netdev/none.cpp",
++		MAME_DIR .. "src/osd/modules/midi/none.cpp",
++		MAME_DIR .. "src/osd/modules/sound/none.cpp",
++		MAME_DIR .. "src/osd/modules/input/input_module.h",
++		MAME_DIR .. "src/osd/modules/input/input_common.cpp",
++		MAME_DIR .. "src/osd/modules/input/input_common.h",
++		MAME_DIR .. "src/osd/modules/input/input_none.cpp",
++		MAME_DIR .. "src/osd/modules/input/input_headless.mm",
++		MAME_DIR .. "src/osd/modules/input/input_headless.h",
++		MAME_DIR .. "src/osd/modules/output/output_module.h",
++		MAME_DIR .. "src/osd/modules/output/none.cpp",
++		MAME_DIR .. "src/osd/modules/output/console.cpp",
++		MAME_DIR .. "src/osd/modules/output/network.cpp",
++		MAME_DIR .. "src/osd/modules/monitor/monitor_common.h",
++		MAME_DIR .. "src/osd/modules/monitor/monitor_common.cpp",
++		MAME_DIR .. "src/osd/modules/monitor/monitor_headless.cpp",
++		--]]
++	}
++	includedirs {
++		-- MAME_DIR .. "3rdparty/asio/include",
++	}
++
++	defines {
++        "USE_OPENGL=0",
++		"__STDC_LIMIT_MACROS",
++		"__STDC_FORMAT_MACROS",
++		"__STDC_CONSTANT_MACROS",
++		"IMGUI_DISABLE_OBSOLETE_FUNCTIONS",
++	}
++
++    --[[
++	files {
++		MAME_DIR .. "src/osd/modules/render/aviwrite.cpp",
++		MAME_DIR .. "src/osd/modules/render/aviwrite.h",
++	}
++
++	includedirs {
++		MAME_DIR .. "3rdparty/bx/include",
++		MAME_DIR .. "3rdparty/rapidjson/include",
++	}
++	--]]
++
++	defines {
++        "NO_USE_MIDI",
++        "NO_USE_PORTAUDIO",
++        "USE_QTDEBUG=0",
++    }
++end
++
++
++function osdmodulestargetconf()
++	if _OPTIONS["targetos"]=="macosx" then
++		links {
++		    "Foundation.framework"
++            -- "AudioUnit.framework",
++            -- "AudioToolbox.framework",
++            -- "CoreAudio.framework",
++            -- "CoreServices.framework",
++        }
++	end
++
++end
++
++
++newoption {
++	trigger = "DONT_USE_NETWORK",
++	description = "Disable network access",
++}
++
++newoption {
++	trigger = "NO_OPENGL",
++	description = "Disable use of OpenGL",
++	allowed = {
++		{ "0",  "Enable OpenGL"  },
++		{ "1",  "Disable OpenGL" },
++	},
++}
++
++newoption {
++	trigger = "USE_DISPATCH_GL",
++	description = "Use GL-dispatching",
++	allowed = {
++		{ "0",  "Link to OpenGL library"  },
++		{ "1",  "Use GL-dispatching"      },
++	},
++}
++
++if not _OPTIONS["USE_DISPATCH_GL"] then
++	_OPTIONS["USE_DISPATCH_GL"] = "0"
++end
++
++newoption {
++	trigger = "NO_USE_MIDI",
++	description = "Disable MIDI I/O",
++	allowed = {
++		{ "0",  "Enable MIDI"  },
++		{ "1",  "Disable MIDI" },
++	},
++}
++
++if not _OPTIONS["NO_USE_MIDI"] then
++	if _OPTIONS["targetos"]=="freebsd" or _OPTIONS["targetos"]=="openbsd" or _OPTIONS["targetos"]=="netbsd" or _OPTIONS["targetos"]=="solaris" or _OPTIONS["targetos"]=="haiku" or _OPTIONS["targetos"] == "asmjs" then
++		_OPTIONS["NO_USE_MIDI"] = "1"
++	else
++		_OPTIONS["NO_USE_MIDI"] = "0"
++	end
++end
++
++newoption {
++	trigger = "NO_USE_PORTAUDIO",
++	description = "Disable PortAudio interface",
++	allowed = {
++		{ "0",  "Enable PortAudio"  },
++		{ "1",  "Disable PortAudio" },
++	},
++}
++
++newoption {
++	trigger = "USE_QTDEBUG",
++	description = "Use QT debugger",
++	allowed = {
++		{ "0",  "Don't use Qt debugger"  },
++		{ "1",  "Use Qt debugger" },
++	},
++}
++
++if not _OPTIONS["USE_QTDEBUG"] then
++	if _OPTIONS["targetos"]=="windows" or _OPTIONS["targetos"]=="macosx" or _OPTIONS["targetos"]=="solaris" or _OPTIONS["targetos"]=="haiku" or _OPTIONS["targetos"] == "asmjs" then
++		_OPTIONS["USE_QTDEBUG"] = "0"
++	else
++		_OPTIONS["USE_QTDEBUG"] = "1"
++	end
++end
+diff --git a/src/emu/config.cpp b/src/emu/config.cpp
+index 8e942341..4c4d0e90 100644
+--- a/src/emu/config.cpp
++++ b/src/emu/config.cpp
+@@ -81,12 +81,17 @@ bool configuration_manager::load_settings()
+ 			throw emu_fatalerror("Could not load controller configuration file %s.cfg", controller);
+ 	}
+ 
+-	// next load the defaults file
+-	emu_file file(machine().options().cfg_directory(), OPEN_FLAG_READ);
+-	attempt_load(machine().system(), file, "default.cfg", config_type::DEFAULT);
++	// leave settings to frontend
++	bool loaded = false;
++	if (machine().options().read_cfg())
++	{
++		// next load the defaults file
++		emu_file file(machine().options().cfg_directory(), OPEN_FLAG_READ);
++		attempt_load(machine().system(), file, "default.cfg", config_type::DEFAULT);
+ 
+-	// load the system-specific file
+-	bool const loaded = attempt_load(machine().system(), file, machine().basename() + ".cfg", config_type::SYSTEM);
++		// load the system-specific file
++		loaded = attempt_load(machine().system(), file, machine().basename() + ".cfg", config_type::SYSTEM);
++	}
+ 
+ 	// loop over all registrants and call their final function
+ 	for (auto const &type : m_typelist)
+@@ -104,17 +109,19 @@ void configuration_manager::save_settings()
+ 	for (auto const &type : m_typelist)
+ 		type.second.save(config_type::INIT, nullptr);
+ 
+-	// save the defaults file
+-	emu_file file(machine().options().cfg_directory(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
+-	std::error_condition filerr = file.open("default.cfg");
+-	if (!filerr)
+-		save_xml(file, config_type::DEFAULT);
+-
+-	// finally, save the system-specific file
+-	filerr = file.open(machine().basename() + ".cfg");
+-	if (!filerr)
+-		save_xml(file, config_type::SYSTEM);
+-
++	if (machine().options().write_cfg())
++	{
++		// save the defaults file
++		emu_file file(machine().options().cfg_directory(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
++		std::error_condition filerr = file.open("default.cfg");
++		if (!filerr)
++			save_xml(file, config_type::DEFAULT);
++
++		// finally, save the system-specific file
++		filerr = file.open(machine().basename() + ".cfg");
++		if (!filerr)
++			save_xml(file, config_type::SYSTEM);
++	}
+ 	// loop over all registrants and call their final function
+ 	for (auto const &type : m_typelist)
+ 		type.second.save(config_type::FINAL, nullptr);
+diff --git a/src/emu/emuopts.cpp b/src/emu/emuopts.cpp
+index 89aeec26..2e724e78 100644
+--- a/src/emu/emuopts.cpp
++++ b/src/emu/emuopts.cpp
+@@ -37,6 +37,9 @@ const options_entry emu_options::s_option_entries[] =
+ 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE CONFIGURATION OPTIONS" },
+ 	{ OPTION_READCONFIG ";rc",                           "1",         core_options::option_type::BOOLEAN,    "enable loading of configuration files" },
+ 	{ OPTION_WRITECONFIG ";wc",                          "0",         core_options::option_type::BOOLEAN,    "write configuration to (driver).ini on exit" },
++	{ OPTION_READCFG,                                    "1",         core_options::option_type::BOOLEAN,    "enable loading of configuration (cfg) files" },
++	{ OPTION_WRITECFG,                                   "1",         core_options::option_type::BOOLEAN,    "write configuration to (driver).cfg on exit" },
++	{ OPTION_HEADLESS,                                   "0",         core_options::option_type::BOOLEAN,    "specifies headless mode" },
+ 
+ 	// search path options
+ 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE SEARCH PATH OPTIONS" },
+@@ -204,6 +207,7 @@ const options_entry emu_options::s_option_entries[] =
+ 	{ OPTION_BIOS,                                       nullptr,     core_options::option_type::STRING,     "select the system BIOS to use" },
+ 	{ OPTION_CHEAT ";c",                                 "0",         core_options::option_type::BOOLEAN,    "enable cheat subsystem" },
+ 	{ OPTION_SKIP_GAMEINFO,                              "0",         core_options::option_type::BOOLEAN,    "skip displaying the system information screen at startup" },
++	{ OPTION_SKIP_WARNINGS,                              "0",         core_options::option_type::BOOLEAN,    "skip displaying the system warnings at startup" },
+ 	{ OPTION_UI_FONT,                                    "default",   core_options::option_type::STRING,     "specify a font to use for UI text" },
+ 	{ OPTION_UI,                                         "cabinet",   core_options::option_type::STRING,     "type of UI (simple|cabinet)" },
+ 	{ OPTION_RAMSIZE ";ram",                             nullptr,     core_options::option_type::STRING,     "size of RAM (if supported by driver)" },
+diff --git a/src/emu/emuopts.h b/src/emu/emuopts.h
+index 8a49544f..1c114418 100644
+--- a/src/emu/emuopts.h
++++ b/src/emu/emuopts.h
+@@ -29,6 +29,10 @@
+ #define OPTION_READCONFIG           "readconfig"
+ #define OPTION_WRITECONFIG          "writeconfig"
+ 
++#define OPTION_READCFG               "readcfg"
++#define OPTION_WRITECFG              "writeccfg"
++#define OPTION_HEADLESS              "headless"
++
+ // core search path options
+ #define OPTION_PLUGINDATAPATH       "homepath"
+ #define OPTION_MEDIAPATH            "rompath"
+@@ -172,6 +176,7 @@
+ #define OPTION_BIOS                 "bios"
+ #define OPTION_CHEAT                "cheat"
+ #define OPTION_SKIP_GAMEINFO        "skip_gameinfo"
++#define OPTION_SKIP_WARNINGS        "skip_warnings"
+ #define OPTION_UI_FONT              "uifont"
+ #define OPTION_UI                   "ui"
+ #define OPTION_RAMSIZE              "ramsize"
+@@ -314,6 +319,9 @@ public:
+ 	// core configuration options
+ 	bool read_config() const { return bool_value(OPTION_READCONFIG); }
+ 	bool write_config() const { return bool_value(OPTION_WRITECONFIG); }
++	bool read_cfg() const { return bool_value(OPTION_READCFG); }
++	bool write_cfg() const { return bool_value(OPTION_WRITECFG); }
++	bool headless() const { return bool_value(OPTION_HEADLESS); }
+ 
+ 	// core search path options
+ 	const char *plugin_data_path() const { return value(OPTION_PLUGINDATAPATH); }
+@@ -456,6 +464,7 @@ public:
+ 	const char *bios() const { return value(OPTION_BIOS); }
+ 	bool cheat() const { return bool_value(OPTION_CHEAT); }
+ 	bool skip_gameinfo() const { return bool_value(OPTION_SKIP_GAMEINFO); }
++	bool skip_warnings() const { return bool_value(OPTION_SKIP_WARNINGS); }
+ 	const char *ui_font() const { return value(OPTION_UI_FONT); }
+ 	ui_option ui() const { return m_ui; }
+ 	const char *ram_size() const { return value(OPTION_RAMSIZE); }
+diff --git a/src/emu/machine.cpp b/src/emu/machine.cpp
+index 2298119b..3f6d5741 100644
+--- a/src/emu/machine.cpp
++++ b/src/emu/machine.cpp
+@@ -279,6 +279,7 @@ void running_machine::start()
+ 	// register callbacks for the devices, then start them
+ 	add_notifier(MACHINE_NOTIFY_RESET, machine_notify_delegate(&running_machine::reset_all_devices, this));
+ 	add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(&running_machine::stop_all_devices, this));
++	add_notifier(MACHINE_NOTIFY_FRAME, machine_notify_delegate(&running_machine::headless_frame_updated, this));
+ 	save().register_presave(save_prepost_delegate(FUNC(running_machine::presave_all_devices), this));
+ 	m_sound->before_devices_init();
+ 	start_all_devices();
+@@ -328,6 +329,178 @@ void running_machine::start()
+ 	manager().update_machine();
+ }
+ 
++void running_machine::headless_frame_updated()
++{
++	m_frame_updated = true;
++}
++
++int running_machine::headless_init(bool quiet)
++{
++	int error = EMU_ERR_NONE;
++
++	// use try/catch for deep error recovery
++	try
++	{
++		m_manager.http()->clear();
++
++		// move to the init phase
++		m_current_phase = machine_phase::INIT;
++
++		// if we have a logfile, set up the callback
++		if (options().log() && !quiet)
++		{
++			m_logfile = std::make_unique<emu_file>(OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
++			std::error_condition const filerr = m_logfile->open("error.log");
++			if (filerr)
++				throw emu_fatalerror("running_machine::run: unable to open error.log file");
++
++			using namespace std::placeholders;
++			add_logerror_callback(std::bind(&running_machine::logfile_callback, this, _1));
++		}
++
++		if (options().debug() && options().debuglog())
++		{
++			m_debuglogfile = std::make_unique<emu_file>(OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
++			std::error_condition const filerr = m_debuglogfile->open("debug.log");
++			if (filerr)
++				throw emu_fatalerror("running_machine::run: unable to open debug.log file");
++		}
++
++		// then finish setting up our local machine
++		start();
++
++		// disallow save state registrations starting here
++		m_save.allow_registration(false);
++
++		// load the configuration settings
++		manager().before_load_settings(*this);
++		m_configuration->load_settings();
++
++		// load the NVRAM
++		nvram_load();
++
++		// set the time on RTCs (this may overwrite parts of NVRAM)
++		set_rtc_datetime(system_time(m_base_time));
++
++		sound().ui_mute(false);
++		if (!quiet)
++			sound().start_recording();
++
++		m_hard_reset_pending = false;
++
++		// initialize ui lists
++		// display the startup screens
++		manager().ui_initialize(*this);
++
++		// perform a soft reset -- this takes us to the running phase
++		soft_reset();
++
++		// handle initial load
++		if (m_saveload_schedule != saveload_schedule::NONE)
++			handle_saveload();
++
++		export_http_api();
++	}
++	catch (emu_fatalerror const &fatal)
++	{
++		osd_printf_error("Fatal error: %s\n", fatal.what());
++		error = EMU_ERR_FATALERROR;
++		if (fatal.exitcode() != 0)
++			error = fatal.exitcode();
++	}
++	catch (emu_exception const &)
++	{
++		osd_printf_error("Caught unhandled emulator exception\n");
++		error = EMU_ERR_FATALERROR;
++	}
++	catch (binding_type_exception const &btex)
++	{
++		osd_printf_error("Error performing a late bind of function expecting type %s to instance of type %s\n", btex.target_type().name(), btex.actual_type().name());
++		error = EMU_ERR_FATALERROR;
++	}
++	catch (tag_add_exception &aex)
++	{
++		osd_printf_error("Tag '%s' already exists in tagged map\n", aex.tag());
++		error = EMU_ERR_FATALERROR;
++	}
++	catch (std::exception &ex)
++	{
++		osd_printf_error("Caught unhandled %s exception: %s\n", typeid(ex).name(), ex.what());
++		error = EMU_ERR_FATALERROR;
++	}
++	catch (...)
++	{
++		osd_printf_error("Caught unhandled exception\n");
++		error = EMU_ERR_FATALERROR;
++	}
++
++	return error;
++}
++
++void running_machine::headless_run()
++{
++	m_frame_updated = false;
++	while (!m_frame_updated)
++	{
++		auto profile = g_profiler.start(PROFILER_EXTRA);
++
++		// execute CPUs if not paused
++		if (!m_paused)
++			m_scheduler.timeslice();
++		// otherwise, just pump video updates and sound mapping updates through
++		else
++		{
++			m_video->frame_update();
++			sound().mapping_update();
++		}
++
++		// handle save/load
++		if (m_saveload_schedule != saveload_schedule::NONE)
++			handle_saveload();
++	}
++
++	if ((m_hard_reset_pending || m_exit_pending) && m_saveload_schedule == saveload_schedule::NONE) {
++		m_current_phase = machine_phase::EXIT;
++	}
++}
++
++int running_machine::headless_deinit()
++{
++	int error = EMU_ERR_NONE;
++
++	try
++	{
++		m_manager.http()->clear();
++
++		// and out via the exit phase
++		m_current_phase = machine_phase::EXIT;
++
++		// save the NVRAM and configuration
++		sound().ui_mute(true);
++		if (options().nvram_save())
++			nvram_save();
++		m_configuration->save_settings();
++	}
++	catch (std::exception &ex)
++	{
++		osd_printf_error("Caught unhandled %s exception: %s\n", typeid(ex).name(), ex.what());
++		error = EMU_ERR_FATALERROR;
++	}
++	catch (...)
++	{
++		osd_printf_error("Caught unhandled exception\n");
++		error = EMU_ERR_FATALERROR;
++	}
++
++	// call all exit callbacks registered
++	call_notifiers(MACHINE_NOTIFY_EXIT);
++	util::archive_file::cache_clear();
++
++	// close the logfile
++	m_logfile.reset();
++	return error;
++}
++
+ 
+ //-------------------------------------------------
+ //  run - execute the machine
+@@ -965,6 +1138,10 @@ void running_machine::handle_saveload()
+ 			u32 const openflags = (m_saveload_schedule == saveload_schedule::LOAD) ? OPEN_FLAG_READ : (OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
+ 
+ 			// open the file
++			if (m_saveload_searchpath == nullptr)
++			{
++				m_saveload_searchpath = "";
++			}
+ 			emu_file file(m_saveload_searchpath ? m_saveload_searchpath : "", openflags);
+ 			auto const filerr = file.open(m_saveload_pending_file);
+ 			if (!filerr)
+diff --git a/src/emu/machine.h b/src/emu/machine.h
+index e75b5a9f..11f4e035 100644
+--- a/src/emu/machine.h
++++ b/src/emu/machine.h
+@@ -162,6 +162,10 @@ public:
+ 	// fetch items by name
+ 	template <class DeviceClass> [[deprecated("absolute tag lookup; use subdevice or finder instead")]] inline DeviceClass *device(const char *tag) { return downcast<DeviceClass *>(root_device().subdevice(tag)); }
+ 
++	int headless_init(bool quiet);
++	void headless_run();
++	int headless_deinit();
++
+ 	// immediate operations
+ 	int run(bool quiet);
+ 	void pause();
+@@ -361,6 +365,9 @@ public:
+ 	static void emscripten_save(const char *name);
+ 	static void emscripten_load(const char *name);
+ #endif
++
++	void headless_frame_updated();
++	bool m_frame_updated = false;
+ };
+ 
+ 
+diff --git a/src/emu/save.cpp b/src/emu/save.cpp
+index f6012bc5..2ea0a368 100644
+--- a/src/emu/save.cpp
++++ b/src/emu/save.cpp
+@@ -376,7 +376,8 @@ save_error save_manager::write_buffer(void *buf, size_t size)
+ 				return true;
+ 			},
+ 			[] () { return true; },
+-			[] () { return true; });
++			[] () { return true; },
++			false);
+ }
+ 
+ 
+@@ -400,7 +401,8 @@ save_error save_manager::read_buffer(const void *buf, size_t size)
+ 				return true;
+ 			},
+ 			[] () { return true; },
+-			[] () { return true; });
++			[] () { return true; },
++			false);
+ }
+ 
+ 
+@@ -409,7 +411,7 @@ save_error save_manager::read_buffer(const void *buf, size_t size)
+ //-------------------------------------------------
+ 
+ template <typename T, typename U, typename V, typename W>
+-inline save_error save_manager::do_write(T check_space, U write_block, V start_header, W start_data)
++inline save_error save_manager::do_write(T check_space, U write_block, V start_header, W start_data, bool check_crc)
+ {
+ 	// check for sufficient space
+ 	size_t total_size = HEADER_SIZE;
+@@ -424,7 +426,7 @@ inline save_error save_manager::do_write(T check_space, U write_block, V start_h
+ 	header[8] = SAVE_VERSION;
+ 	header[9] = NATIVE_ENDIAN_VALUE_LE_BE(0, SS_MSB_FIRST);
+ 	strncpy((char *)&header[0x0a], machine().system().name, 0x1c - 0x0a);
+-	u32 sig = signature();
++	u32 sig = check_crc ? signature() : 0;
+ 	put_u32le(&header[0x1c], sig);
+ 
+ 	// write the header and turn on compression for the rest of the file
+@@ -452,7 +454,7 @@ inline save_error save_manager::do_write(T check_space, U write_block, V start_h
+ //-------------------------------------------------
+ 
+ template <typename T, typename U, typename V, typename W>
+-inline save_error save_manager::do_read(T check_length, U read_block, V start_header, W start_data)
++inline save_error save_manager::do_read(T check_length, U read_block, V start_header, W start_data, bool check_crc)
+ {
+ 	// check for sufficient space
+ 	size_t total_size = HEADER_SIZE;
+@@ -467,9 +469,14 @@ inline save_error save_manager::do_read(T check_length, U read_block, V start_he
+ 		return STATERR_READ_ERROR;
+ 
+ 	// verify the header and report an error if it doesn't match
+-	u32 const sig = signature();
+-	if (validate_header(header, machine().system().name, sig).first != STATERR_NONE)
+-		return STATERR_INVALID_HEADER;
++	// in-memory states (write_buffer/read_buffer) skip the signature, which
++	// is slow to compute and only guards against loading another build's file
++	if (check_crc)
++	{
++		u32 const sig = signature();
++		if (validate_header(header, machine().system().name, sig).first != STATERR_NONE)
++			return STATERR_INVALID_HEADER;
++	}
+ 
+ 	// determine whether or not to flip the data when done
+ 	const bool flip = NATIVE_ENDIAN_VALUE_LE_BE((header[9] & SS_MSB_FIRST) != 0, (header[9] & SS_MSB_FIRST) == 0);
+diff --git a/src/emu/save.h b/src/emu/save.h
+index 7a7dd535..fe4c8d30 100644
+--- a/src/emu/save.h
++++ b/src/emu/save.h
+@@ -324,9 +324,9 @@ private:
+ 
+ 	// internal helpers
+ 	template <typename T, typename U, typename V, typename W>
+-	save_error do_write(T check_space, U write_block, V start_header, W start_data);
++	save_error do_write(T check_space, U write_block, V start_header, W start_data, bool check_crc = true);
+ 	template <typename T, typename U, typename V, typename W>
+-	save_error do_read(T check_length, U read_block, V start_header, W start_data);
++	save_error do_read(T check_length, U read_block, V start_header, W start_data, bool check_crc = true);
+ 	u32 signature() const;
+ 	void dump_registry() const;
+ 	static std::pair<save_error, std::string> validate_header(const u8 *header, const char *gamename, u32 signature);
+diff --git a/src/frontend/mame/mame.cpp b/src/frontend/mame/mame.cpp
+index 4c4ea965..6bf60bcb 100644
+--- a/src/frontend/mame/mame.cpp
++++ b/src/frontend/mame/mame.cpp
+@@ -228,6 +228,12 @@ void mame_machine_manager::start_luaengine()
+ }
+ 
+ 
++void mame_machine_manager::commit_new_driver()
++{
++	m_options.set_system_name(m_new_driver_pending->name);
++	m_firstrun = false;
++}
++
+ //-------------------------------------------------
+ //  execute - run the core emulation
+ //-------------------------------------------------
+diff --git a/src/frontend/mame/mame.h b/src/frontend/mame/mame.h
+index 80bd0419..31054605 100644
+--- a/src/frontend/mame/mame.h
++++ b/src/frontend/mame/mame.h
+@@ -71,6 +71,11 @@ public:
+ 	inifile_manager &inifile() const { assert(m_inifile != nullptr); return *m_inifile; }
+ 	favorite_manager &favorite() const { assert(m_favorite != nullptr); return *m_favorite; }
+ 
++	game_driver const * new_driver_pending() const { return m_new_driver_pending; }
++	void clear_new_driver_pending() { m_new_driver_pending = nullptr; }
++	void commit_new_driver();
++	bool firstrun() const { return m_firstrun; }
++
+ private:
+ 	// construction
+ 	mame_machine_manager(emu_options &options, osd_interface &osd);
+diff --git a/src/frontend/mame/ui/confswitch.cpp b/src/frontend/mame/ui/confswitch.cpp
+index ca19a0f4..9dad9842 100644
+--- a/src/frontend/mame/ui/confswitch.cpp
++++ b/src/frontend/mame/ui/confswitch.cpp
+@@ -11,6 +11,7 @@
+ #include "emu.h"
+ #include "ui/confswitch.h"
+ 
++#include "emuopts.h"
+ #include "uiinput.h"
+ 
+ #include <algorithm>
+@@ -178,6 +179,11 @@ void menu_confswitch::populate()
+ 		item_append(_("[currently n/a]"), FLAG_DISABLE, nullptr);
+ 
+ 	item_append(menu_item_type::SEPARATOR);
++
++	// the host frontend owns resetting the machine
++	if (machine().options().headless())
++		return;
++
+ 	item_append(_("Reset System"), 0, (void *)1);
+ }
+ 
+diff --git a/src/frontend/mame/ui/mainmenu.cpp b/src/frontend/mame/ui/mainmenu.cpp
+index 391a91d3..66d80494 100644
+--- a/src/frontend/mame/ui/mainmenu.cpp
++++ b/src/frontend/mame/ui/mainmenu.cpp
+@@ -114,6 +114,23 @@ void menu_main::populate()
+ {
+ 	m_phase = machine().phase();
+ 
++	if (machine().options().headless())
++	{
++		if (ui().machine_info().has_dips())
++			item_append(_("Dip Switches"), "", 0, (void *)SETTINGS_DIP_SWITCHES);
++		if (ui().machine_info().has_configs())
++			item_append(_("Machine Configuration"), "", 0, (void *)SETTINGS_DRIVER_CONFIG);
++
++		item_append(_("Machine Information"), "", 0, (void *)GAME_INFO);
++
++		if (machine().options().cheat())
++			item_append(_("Cheat"), "", 0, (void *)CHEAT);
++
++		item_append(menu_item_type::SEPARATOR);
++
++		return;
++	}
++
+ 	item_append(_("menu-main", "Input Settings"), 0, (void *)INPUT_OPTIONS);
+ 
+ 	if (ui().machine_info().has_dips())
+diff --git a/src/frontend/mame/ui/selgame.cpp b/src/frontend/mame/ui/selgame.cpp
+index 62b834e8..af024c7f 100644
+--- a/src/frontend/mame/ui/selgame.cpp
++++ b/src/frontend/mame/ui/selgame.cpp
+@@ -100,6 +100,10 @@ menu_select_game::menu_select_game(mame_ui_manager &mui, render_target &target,
+ 
+ 	// do this after processing the last used filter setting so it overwrites the placeholder
+ 	load_custom_filters();
++	if (machine().options().headless())
++	{
++		m_persistent_data.filter_data().set_current_filter_type(machine_filter::NOT_MECHANICAL);
++	}
+ 	m_filter_highlight = m_persistent_data.filter_data().get_current_filter_type();
+ 
+ 	if (!moptions.remember_last())
+@@ -300,6 +304,12 @@ void menu_select_game::populate()
+ 
+ 	bool have_prev_selected = false;
+ 	int old_item_selected = -1;
++
++	if (machine().options().headless())
++	{
++		m_persistent_data.filter_data().set_current_filter_type(machine_filter::NOT_MECHANICAL);
++	}
++
+ 	if (!isfavorite())
+ 	{
+ 		if (m_populated_favorites)
+diff --git a/src/frontend/mame/ui/ui.cpp b/src/frontend/mame/ui/ui.cpp
+index fd59bb3d..66335f09 100644
+--- a/src/frontend/mame/ui/ui.cpp
++++ b/src/frontend/mame/ui/ui.cpp
+@@ -656,7 +656,7 @@ void mame_ui_manager::display_startup_screens(bool first_time)
+ 	const int maxstate = 3;
+ 	int const str = machine().options().seconds_to_run();
+ 	bool show_gameinfo = !machine().options().skip_gameinfo();
+-	bool show_warnings = true;
++	bool show_warnings = !machine().options().skip_warnings();
+ 	bool video_none = strcmp(downcast<osd_options &>(machine().options()).video(), OSDOPTVAL_NONE) == 0;
+ 
+ 	// disable everything if we are using -str for 300 or fewer seconds, or if we're the empty driver,
+diff --git a/src/osd/headless/DriverList+Private.h b/src/osd/headless/DriverList+Private.h
+new file mode 100644
+index 00000000..11541b07
+--- /dev/null
++++ b/src/osd/headless/DriverList+Private.h
+@@ -0,0 +1,3 @@
++#import "public/DriverList.h"
++#import "driver+private.h"
++
+diff --git a/src/osd/headless/driver+private.h b/src/osd/headless/driver+private.h
+new file mode 100644
+index 00000000..9fd3135c
+--- /dev/null
++++ b/src/osd/headless/driver+private.h
+@@ -0,0 +1,9 @@
++#import "public/driver.h"
++
++class game_driver;
++
++@interface GameDriver (Private)
++
++- (instancetype)initWithGameDriver:(game_driver const *)driver;
++
++@end
+\ No newline at end of file
+diff --git a/src/osd/headless/driver.mm b/src/osd/headless/driver.mm
+new file mode 100644
+index 00000000..e2de4d20
+--- /dev/null
++++ b/src/osd/headless/driver.mm
+@@ -0,0 +1,141 @@
++#import "driver+private.h"
++#import "DriverList+Private.h"
++#import <emu.h>
++#import "../../frontend/mame/infoxml.h"
++
++// GameDriverOptions keeps the bit layout of MAME 0.250's machine flags so
++// frontends built against it keep working. Newer MAME keeps the same facts in
++// machine_flags (driver->flags) and in the driver's device type (emulation
++// flags, unemulated and imperfect features); -flags translates them. The
++// machine type (arcade/console/computer) is no longer recorded by MAME.
++static GameDriverOptions OEDriverOptions(game_driver const &driver)
++{
++	GameDriverOptions options = 0;
++	auto const mflags = driver.flags;
++	if (mflags & machine_flags::NO_COCKTAIL)      options |= GameDriverMachineNoCocktail;
++	if (mflags & machine_flags::IS_BIOS_ROOT)     options |= GameDriverMachineIsBiosRoot;
++	if (mflags & machine_flags::REQUIRES_ARTWORK) options |= GameDriverMachineRequiresArtwork;
++	if (mflags & machine_flags::UNOFFICIAL)       options |= GameDriverMachineUnofficial;
++	if (mflags & machine_flags::NO_SOUND_HW)      options |= GameDriverMachineNoSoundHw;
++	if (mflags & machine_flags::MECHANICAL)       options |= GameDriverMachineMechanical;
++	if (mflags & machine_flags::IS_INCOMPLETE)    options |= GameDriverMachineIsIncomplete;
++
++	auto const eflags = driver.type.emulation_flags();
++	if (eflags & emu::detail::device_flags::NOT_WORKING)           options |= GameDriverMachineNotWorking;
++	if (!(eflags & emu::detail::device_flags::SAVE_UNSUPPORTED))   options |= GameDriverMachineSupportsSave;
++
++	auto const unemulated = driver.type.unemulated_features();
++	auto const imperfect = driver.type.imperfect_features();
++	if ((unemulated | imperfect) & emu::detail::device_feature::PROTECTION) options |= GameDriverMachineUnemulatedProtection;
++	if (unemulated & emu::detail::device_feature::PALETTE)    options |= GameDriverMachineWrongColors;
++	if (imperfect & emu::detail::device_feature::PALETTE)     options |= GameDriverMachineImperfectColors;
++	if ((unemulated | imperfect) & emu::detail::device_feature::GRAPHICS) options |= GameDriverMachineImperfectGraphics;
++	if (unemulated & emu::detail::device_feature::SOUND)      options |= GameDriverMachineNoSound;
++	if (imperfect & emu::detail::device_feature::SOUND)       options |= GameDriverMachineImperfectSound;
++	if ((unemulated | imperfect) & emu::detail::device_feature::CONTROLS) options |= GameDriverMachineImperfectControls;
++	if (unemulated & emu::detail::device_feature::MICROPHONE) options |= GameDriverMachineNoDeviceMicrophone;
++	if (unemulated & emu::detail::device_feature::PRINTER)    options |= GameDriverMachineNoDevicePrinter;
++	if (unemulated & emu::detail::device_feature::LAN)        options |= GameDriverMachineNoDeviceLan;
++	if ((unemulated | imperfect) & emu::detail::device_feature::TIMING) options |= GameDriverMachineImperfectTiming;
++	return options;
++}
++
++@implementation GameDriver {
++	game_driver const *_driver;
++	NSString *_name;
++	NSString *_shortName;
++	NSString *_fullName;
++	NSString *_parent;
++}
++
++- (instancetype)initWithGameDriver:(game_driver const *)driver
++{
++	if ((self = [super init]))
++	{
++		_driver = driver;
++	}
++	return self;
++}
++
++- (NSString *)name
++{
++	return _name ?: (_name = NSSTRING_NO_COPY(_driver->name));
++}
++
++- (NSString *)shortName
++{
++	return _shortName ?: (_shortName = NSSTRING_NO_COPY(_driver->type.shortname()));
++}
++
++- (NSString *)fullName
++{
++	return _fullName ?: (_fullName = NSSTRING_NO_COPY(_driver->type.fullname()));
++}
++
++- (NSString * __nullable)parent
++{
++	if (_driver->parent == nullptr) return nil;
++
++	return _parent ?: (_parent = NSSTRING_NO_COPY(_driver->parent));
++}
++
++- (NSString *)description
++{
++	return [NSString stringWithFormat:@"%@ (%@)", self.fullName, self.name];
++}
++
++- (GameDriverOptions)flags
++{
++	return OEDriverOptions(*_driver);
++}
++
++- (void)dealloc
++{
++	NSLog(@"%@: dealloc", NSStringFromClass(self.class));
++}
++
++@end
++
++#import "drivenum.h"
++
++static GameDriver * __strong * s_drivers_sorted;
++
++@implementation DriverList {
++	CFArrayRef _items;
++}
++
+++ (DriverList *)shared
++{
++	static DriverList *obj;
++
++	static dispatch_once_t once;
++	dispatch_once(&once, ^{
++		s_drivers_sorted = static_cast<GameDriver * __strong *>(calloc(driver_list::total(), sizeof(GameDriver *)));
++		for (size_t i = 0; i < driver_list::total(); i++)
++		{
++			s_drivers_sorted[i] = [[GameDriver alloc] initWithGameDriver:&driver_list::driver(i)];
++		}
++
++		obj = [DriverList new];
++		obj->_items = CFArrayCreate(kCFAllocatorDefault, (const void * *)(void *)s_drivers_sorted, static_cast<CFIndex>(driver_list::total()), &kCFTypeArrayCallBacks);
++	});
++
++	return obj;
++}
++
++- (NSArray<GameDriver *> *)allDrivers
++{
++	return (__bridge NSArray *)_items;
++}
++
++- (GameDriver *)findWithName:(NSString *)name
++{
++	auto index = driver_list::find(name.UTF8String);
++	if (index == -1) {
++		return nil;
++	}
++
++	return s_drivers_sorted[index];
++}
++
++@end
+diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
+new file mode 100644
+index 00000000..532701be
+--- /dev/null
++++ b/src/osd/headless/headless.mm
+@@ -0,0 +1,1371 @@
++#import <Foundation/Foundation.h>
++
++// standard includes
++#include <unistd.h>
++#include <algorithm>
++
++// MAME headers
++#include "emu.h"
++#include "../../frontend/mame/audit.h"
++#include "osdepend.h"
++#include "emuopts.h"
++#include "../../frontend/mame/ui/menuitem.h"
++#include "validity.h"
++#include "render.h"
++#include "rendlay.h"
++#include "ui/uimain.h"
++#include "uiinput.h"
++#include "input.h"
++#include <inputdev.h>
++#include <os/log.h>
++
++// OSD headers
++#include "../modules/osdhelper.h"
++#include "public/headless.h"
++#include "options+private.h"
++#include "modules/lib/osdlib.h"
++#include "modules/lib/osdobj_common.h"
++#import "../../../frontend/mame/mame.h"
++
++// Renderer headers
++#include "rendersw.hxx"
++#import "driver+private.h"
++
++// sanity checks
++
++#if !__has_feature(objc_arc)
++#error Automatic reference counting is required
++#endif
++
++OE_ENUM_CHECK(media_auditor::summary, NOTFOUND, AuditSummaryNotFound);
++
++OE_ENUM_CHECK(media_auditor::audit_status, GOOD, AuditStatusGood);
++OE_ENUM_CHECK(media_auditor::audit_status, UNVERIFIED, AuditStatusUnverified);
++
++OE_ENUM_CHECK(media_auditor::audit_substatus, GOOD, AuditSubstatusGood);
++OE_ENUM_CHECK(media_auditor::audit_substatus, UNVERIFIED, AuditSubstatusUnverified);
++
++OE_ENUM_CHECK(media_auditor::media_type, ROM, AuditMediaTypeROM);
++OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
++
++static os_log_t OE_LOG;
++
++NSString *const MAMEErrorDomain = @"org.openemu.mame.ErrorDomain";
++
++void osd_setup_osd_specific_emu_options(emu_options &opts)
++{
++	[OSD class];
++}
++
++#pragma mark - osd_options
++
++const options_entry osd_options::s_option_entries[] =
++		{
++				{nullptr, nullptr,                core_options::option_type::HEADER, "OSD VIDEO OPTIONS"},
++				{OSDOPTION_VIDEO, OSDOPTVAL_AUTO, core_options::option_type::STRING, "video output method: "},
++				{nullptr}
++		};
++
++osd_options::osd_options()
++		: emu_options()
++{
++	add_entries(osd_options::s_option_entries);
++}
++
++#pragma mark - definition
++
++class headless_osd_interface final : public osd_interface, osd_output
++{
++public:
++	enum osd_state
++	{
++		uninitialized,
++		initialized,
++		error,
++	};
++
++	explicit headless_osd_interface(osd_options &options);
++	~headless_osd_interface() final;
++
++	// current state
++	osd_state state() const
++	{ return m_state; };
++
++	// general overridables
++	void init(running_machine &machine) override;
++	void exit();
++	void update(bool skip_redraw) override;
++	void input_update(bool relative_reset) override;
++	void check_osd_inputs() override
++	{};
++
++	// debugger overridables
++	void init_debugger() override
++	{};
++
++	void wait_for_debugger(device_t &device, bool firststop) override
++	{};
++
++	// audio overridables: one stereo output node; MAME mixes everything into
++	// it and the delegate receives interleaved 16-bit stereo, as before
++	bool no_sound() override
++	{ return false; };
++
++	bool sound_external_per_channel_volume() override
++	{ return false; }
++
++	bool sound_split_streams_per_source() override
++	{ return false; }
++
++	uint32_t sound_get_generation() override
++	{ return 1; }
++
++	osd::audio_info sound_get_information() override;
++
++	uint32_t sound_stream_sink_open(uint32_t node, std::string name, uint32_t rate) override
++	{ return 1; }
++
++	uint32_t sound_stream_source_open(uint32_t node, std::string name, uint32_t rate) override
++	{ return 0; }
++
++	void sound_stream_close(uint32_t id) override
++	{}
++
++	void sound_stream_sink_update(uint32_t id, const int16_t *buffer, int samples_this_frame) override;
++
++	void sound_stream_source_update(uint32_t id, int16_t *buffer, int samples_this_frame) override
++	{ std::fill_n(buffer, samples_this_frame, int16_t(0)); }
++
++	void sound_stream_set_volumes(uint32_t id, const std::vector<float> &db) override
++	{}
++
++	void sound_begin_update() override
++	{}
++
++	void sound_end_update() override
++	{}
++
++	// input overridables
++	void customize_input_type_list(std::vector<input_type_entry> &typelist) override;
++
++	// video overridables
++	void add_audio_to_recording(const int16_t *buffer, int samples_this_frame) override
++	{};
++
++	std::vector<ui::menu_item> get_slider_list() override
++	{ return m_sliders; };
++
++	void *buffer() const
++	{ return m_buffer; }
++
++	osd_dim buffer_size() const
++	{ return m_buffer_size; }
++
++	auto set_buffer(void *buffer, osd_dim size) -> void;
++
++	// font interface
++	osd_font::ptr font_alloc() override;
++	bool
++	get_font_families(std::string const &font_path, std::vector<std::pair<std::string, std::string> > &result) override;
++
++	// command option overrides
++	bool execute_command(const char *command) override
++	{ return false; }
++
++	// MIDI and network interfaces: none
++	std::unique_ptr<osd::midi_input_port> create_midi_input(std::string_view name) override
++	{ return nullptr; }
++
++	std::unique_ptr<osd::midi_output_port> create_midi_output(std::string_view name) override
++	{ return nullptr; }
++
++	std::vector<osd::midi_port_info> list_midi_ports() override
++	{ return {}; }
++
++	std::unique_ptr<osd::network_device> open_network_device(int id, osd::network_handler &handler) override
++	{ return nullptr; }
++
++	std::vector<osd::network_device_info> list_network_devices() override
++	{ return {}; }
++
++	// osd_output interface ...
++	void output_callback(osd_output_channel channel, util::format_argument_pack<char> const &args) override;
++
++	bool verbose() const
++	{ return m_print_verbose; }
++
++	void set_verbose(bool print_verbose) override
++	{ m_print_verbose = print_verbose; }
++
++	// other
++	void set_delegate(id <OSDDelegate> delegate)
++	{ m_delegate = delegate; }
++
++protected:
++
++	void update_dimensions();
++
++	// internal state
++	running_machine *m_machine;
++	osd_options &m_options;
++
++	osd_state m_state;
++
++	// ui
++	std::vector<ui::menu_item> m_sliders;
++	bool m_print_verbose;
++
++	// video
++	double m_fps;
++	render_target *m_target;
++	void *m_buffer;
++	osd_dim m_buffer_size;
++	osd_dim m_target_size;
++
++	// delegate
++	id <OSDDelegate> m_delegate;
++};
++
++#pragma mark - Other categories
++
++@interface AuditResult ()
++@property (nonatomic, readonly) game_driver const *gameDriver;
+++ (instancetype)auditResultWithOptions:(Options *)options driverName:(NSString *)driverName;
++@end
++
++@interface InputClass ()
++- (instancetype)initWithClass:(input_class *)clas;
++@end
++
++#pragma mark - OSD Objective C Interface
++
++#pragma clang diagnostic ignored "-Wenum-compare"
++
++static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_ID_ABSOLUTE_MAXIMUM,
++              "enum is different");
++
++@implementation OSD
++{
++	Options *_options;
++	headless_osd_interface *_osd;
++	mame_machine_manager *_manager;
++	machine_config *_config;
++	running_machine *_machine;
++	game_driver const *_gameDriver;
++	BOOL _supportsSave;
++
++	InputClass *_joystick;
++	InputClass *_mouse;
++	InputClass *_keyboard;
++
++	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
++
++	bool _isEmpty;
++}
++
+++ (void)initialize
++{
++	OE_LOG = os_log_create("org.mamedev.mame", "osd");
++}
++
++- (instancetype)init
++{
++	self = [super init];
++	if (self == nil)
++	{
++		return nil;
++	}
++
++	_options = [Options new];
++
++	osd_options *opt = _options.options;
++
++	_osd = new headless_osd_interface(*opt);
++
++	_manager = mame_machine_manager::instance(*_options.options, *_osd);
++	_manager->start_http_server();
++	_manager->start_luaengine();
++
++	// arbitrary size
++	_maxBufferSize = NSMakeSize(2048, 2048);
++
++	return self;
++}
++
++- (void)dealloc
++{
++	[self _freeMachine];
++	delete _manager;
++	delete _osd;
++}
++
++- (InputClass *)joystick
++{
++	if (_joystick == nil)
++	{
++		_joystick = [[InputClass alloc] initWithClass:&_machine->input().device_class(DEVICE_CLASS_JOYSTICK)];
++	}
++	return _joystick;
++}
++
++- (InputClass *)mouse
++{
++	if (_mouse == nil)
++	{
++		_mouse = [[InputClass alloc] initWithClass:&_machine->input().device_class(DEVICE_CLASS_MOUSE)];
++	}
++	return _mouse;
++}
++
++- (InputClass *)keyboard
++{
++	if (_keyboard == nil)
++	{
++		_keyboard = [[InputClass alloc] initWithClass:&_machine->input().device_class(DEVICE_CLASS_KEYBOARD)];
++	}
++	return _keyboard;
++}
++
++- (void)setDelegate:(id <OSDDelegate>)delegate
++{
++	_delegate = delegate;
++	_osd->set_delegate(delegate);
++}
++
++- (void)setVerboseOutput:(BOOL)val
++{
++	_osd->set_verbose(val);
++}
++
++- (BOOL)verboseOutput
++{
++	return (BOOL) _osd->verbose();
++}
++
++- (void)setBuffer:(void *)buffer size:(NSSize)size
++{
++	auto dim = osd_dim(static_cast<int>(size.width), static_cast<int>(size.height));
++	_osd->set_buffer(buffer, dim);
++}
++
++- (BOOL)initializeWithError:(NSError **)error
++{
++	return [self _initializeGame:error];
++}
++
++- (BOOL)setDriver:(NSString *)driver withAuditResult:(AuditResult **)result error:(NSError **)error
++{
++	AuditResult *ar = [AuditResult auditResultWithOptions:_options driverName:driver];
++	if (ar == nil)
++	{
++		// nil indicates the driver was not found
++		if (error)
++		{
++			NSDictionary<NSErrorUserInfoKey, id> *info = @{
++					NSLocalizedDescriptionKey: NSLocalizedString(@"Invalid driver", "Driver not supported"),
++			};
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorInvalidDriver userInfo:info];
++		}
++		return NO;
++	}
++
++	if (result)
++	{
++		*result = ar;
++	}
++
++	_gameDriver = ar.gameDriver;
++	_driver = [[GameDriver alloc] initWithGameDriver:_gameDriver];
++
++	try
++	{
++		_options.options->set_system_name(driver.UTF8String);
++	}
++	catch (options_error_exception &ex)
++	{
++		// NOTE(sgc): this should never happen, given we've validated the system
++		return NO;
++	}
++
++	return YES;
++}
++
++- (void)unload
++{
++	_osd->set_buffer(nullptr, osd_dim());
++	[self _freeMachine];
++}
++
++#pragma mark - save / load
++
++- (BOOL)loadStateFromFileAtPath:(NSString *)fileName error:(NSError **)error
++{
++	if (_supportsSave)
++	{
++		std::string name(fileName.UTF8String);
++		_machine->immediate_load(name.c_str());
++		return YES;
++	}
++	return NO;
++}
++
++- (BOOL)saveStateFromFileAtPath:(NSString *)fileName error:(NSError **)error
++{
++	if (_supportsSave)
++	{
++		std::string name(fileName.UTF8String);
++		_machine->immediate_save(name.c_str());
++		return YES;
++	}
++	return NO;
++}
++
++
++#pragma mark - serialization
++
++- (NSUInteger)stateSize
++{
++	if (!_supportsSave)
++	{
++		return 0;
++	}
++
++	return static_cast<NSUInteger>(ram_state::get_size(_machine->save()));
++}
++
++- (NSData *)serializeState
++{
++	if (!_supportsSave)
++	{
++		return nil;
++	}
++
++	auto sz = ram_state::get_size(_machine->save());
++	void *buf = malloc(sz);
++	auto res = _machine->save().write_buffer(buf, sz);
++	if (res != STATERR_NONE)
++	{
++		free(buf);
++		return nil;
++	}
++
++	return [[NSData alloc] initWithBytesNoCopy:buf length:sz freeWhenDone:YES];
++}
++
++- (BOOL)deserializeState:(NSData *)data
++{
++	if (!_supportsSave)
++	{
++		return NO;
++	}
++
++	auto res = _machine->save().read_buffer(const_cast<void *>(data.bytes), data.length);
++	return static_cast<BOOL>(res == STATERR_NONE);
++}
++
++- (void)_freeMachine
++{
++	_gameDriver = nil;
++	_joystick = nil;
++	_mouse = nil;
++	_keyboard = nil;
++	_supportsSave = NO;
++	@synchronized (self) { [_activeCheats removeAllObjects]; }
++
++	_manager->set_machine(nullptr);
++
++	if (_machine)
++	{
++		_machine->headless_deinit();
++		delete _machine;
++		_machine = nil;
++	}
++
++	if (_config)
++	{
++		delete _config;
++		_config = nil;
++	}
++}
++
++- (BOOL)_initializeGame:(NSError **)error
++{
++	[self _freeMachine];
++
++	_manager->clear_new_driver_pending();
++
++	// if no driver, use the internal empty driver
++	_gameDriver = _options.options->system();
++	if (_gameDriver == nullptr)
++	{
++		_gameDriver = &GAME_NAME(___empty);
++	}
++
++	// otherwise, perform validity checks before anything else
++	_isEmpty = (_gameDriver == &GAME_NAME(___empty));
++	if (!_isEmpty)
++	{
++		validity_checker valid(*_options.options, true);
++		valid.set_verbose(false);
++		valid.check_shared_source(*_gameDriver);
++	}
++
++	_config = new machine_config(*_gameDriver, *_options.options);
++	_machine = new running_machine(*_config, *_manager);
++	_manager->set_machine(_machine);
++
++	// TODO(sgc): this could error due to invalid BIOS; need to extract this properly
++	int ok = _machine->headless_init(_isEmpty);
++	if (ok != EMU_ERR_NONE || _osd->state() == headless_osd_interface::osd_state::error)
++	{
++		[self _freeMachine];
++
++		if (error != nil)
++		{
++			NSDictionary<NSErrorUserInfoKey, id> *info = @{
++					NSLocalizedDescriptionKey: NSLocalizedString(@"Failed to initialize; unsupported ROM",
++					                                             @"init failed")
++			};
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorUnsupportedROM userInfo:info];
++		}
++
++		return NO;
++	}
++
++	_supportsSave = static_cast<BOOL>((_machine->system().flags & MACHINE_SUPPORTS_SAVE) != 0);
++
++	return static_cast<BOOL>(_machine->phase() == machine_phase::RUNNING);
++}
++
++#pragma mark - memory / cheats
++
++- (address_space *)_programSpace
++{
++	if (!_machine) return nullptr;
++	device_t *cpu = _machine->root_device().subdevice(":maincpu");
++	if (!cpu) return nullptr;
++	device_memory_interface *memintf;
++	if (!cpu->interface(memintf) || !memintf->has_space(AS_PROGRAM))
++		return nullptr;
++	return &memintf->space(AS_PROGRAM);
++}
++
++- (NSArray<NSDictionary *> *)readableMemoryRegions
++{
++	address_space *space = [self _programSpace];
++	if (!space) return @[];
++
++	BOOL bigEndian = space->endianness() == ENDIANNESS_BIG;
++	NSMutableArray *regions = [NSMutableArray array];
++	NSMutableSet *seenShares = [NSMutableSet set];
++
++	for (address_map_entry &entry : space->map()->m_entrylist) {
++		if (entry.m_write.m_type != AMH_RAM) continue;
++
++		if (entry.m_share) {
++			NSString *share = @(entry.m_share);
++			if ([seenShares containsObject:share]) continue;
++			[seenShares addObject:share];
++		}
++
++		offs_t start = entry.m_addrstart & space->addrmask();
++		offs_t end   = entry.m_addrend   & space->addrmask();
++		offs_t size  = end - start + 1;
++
++		void *ptr = space->get_write_ptr(start);
++		if (!ptr) continue;
++
++		[regions addObject:@{
++			@"address":    @(start),
++			@"size":       @(size),
++			@"name":       entry.m_share ? @(entry.m_share) : @"",
++			@"bytes":      [NSData dataWithBytes:ptr length:size],
++			@"bigEndian":  @(bigEndian),
++		}];
++	}
++	return regions;
++}
++
++- (void)setCheat:(uint32_t)index address:(uint32_t)address value:(uint32_t)value size:(uint8_t)size enabled:(BOOL)enabled
++{
++	@synchronized (self) {
++		if (!_activeCheats) _activeCheats = [NSMutableDictionary new];
++
++		NSNumber *key = @(index);
++		if (enabled) {
++			_activeCheats[key] = @{
++				@"address": @(address),
++				@"value":   @(value),
++				@"size":    @(size),
++			};
++		} else {
++			[_activeCheats removeObjectForKey:key];
++		}
++	}
++}
++
++- (void)_applyCheats
++{
++	NSDictionary *cheats;
++	@synchronized (self) {
++		if (_activeCheats.count == 0) return;
++		cheats = [_activeCheats copy];
++	}
++
++	address_space *space = [self _programSpace];
++	if (!space) return;
++
++	for (NSDictionary *cheat in cheats.allValues) {
++		offs_t addr  = [cheat[@"address"] unsignedIntValue];
++		uint32_t val = [cheat[@"value"] unsignedIntValue];
++		uint8_t size = [cheat[@"size"] unsignedCharValue];
++
++		switch (size) {
++			case 1: space->write_byte(addr, val);  break;
++			case 2: space->write_word(addr, val);   break;
++			case 4: space->write_dword(addr, val);  break;
++		}
++	}
++}
++
++#pragma mark - Execution
++
++- (BOOL)execute
++{
++	if (_manager->new_driver_pending())
++	{
++		_manager->commit_new_driver();
++		if (![self _initializeGame:nil])
++		{
++			return NO;
++		};
++	}
++
++	[self _applyCheats];
++	_machine->headless_run();
++
++	return YES;
++}
++
++- (void)scheduleSoftReset
++{
++	_machine->schedule_soft_reset();
++}
++
++- (void)scheduleHardReset
++{
++	[self unload];
++	[self _initializeGame:nil];
++}
++
+++ (OSD *)shared
++{
++	static OSD *shared;
++
++	static dispatch_once_t once;
++	dispatch_once(&once, ^{
++		shared = [[OSD alloc] init];
++	});
++
++	return shared;
++}
++
++@end
++
++@implementation InputDeviceItem
++@end
++
++@implementation InputDevice
++{
++	input_device *_device;
++	NSMutableDictionary<NSNumber *, InputCallback> *_callbacks;
++}
++
++- (instancetype)initWithDevice:(input_device *)device
++{
++	if (!(self = [super init]))
++	{
++		return nil;
++	}
++
++	_device     = device;
++	_callbacks  = [NSMutableDictionary new];
++
++	return self;
++}
++
++- (NSUInteger)index
++{
++	return static_cast<NSUInteger>(_device->devindex());
++}
++
++- (NSString *)name
++{
++	return NSSTRING_NO_COPY(_device->name().c_str());
++}
++
++- (NSString *)id
++{
++	return NSSTRING_NO_COPY(_device->id().c_str());
++}
++
++static int32_t block_getter(void *device_internal, void *item_internal)
++{
++	InputCallback block = (__bridge InputCallback)item_internal;
++	return block();
++}
++
++- (InputItemID)addItemNamed:(NSString *)name id:(InputItemID)iid withBlock:(InputCallback)block
++{
++	// capture the assigned InputItemID
++	iid = static_cast<InputItemID>(_device->add_item(name.UTF8String, std::string_view(), static_cast<input_item_id>(iid),
++	                                           reinterpret_cast<input_device_item::item_get_state_func>(block_getter), (__bridge void *)block));
++	// maintain a reference to the block, so it isn't released prematurely
++	_callbacks[@(iid)] = block;
++	return iid;
++}
++
++- (InputItemID)addItemNamed:(NSString *)name id:(InputItemID)iid getter:(ItemGetStateFunc)getter context:(void *)context
++{
++	return static_cast<InputItemID>(_device->add_item(name.UTF8String, std::string_view(), static_cast<input_item_id>(iid),
++	                                                  reinterpret_cast<input_device_item::item_get_state_func>(getter), context));
++}
++
++@end
++
++@implementation InputClass
++{
++	input_class *_class;
++	NSMutableArray<InputDevice *> *_devices;
++}
++
++- (instancetype)initWithClass:(input_class *)clas
++{
++	if (!(self = [super init]))
++	{
++		return nil;
++	}
++
++	_class = clas;
++	_devices = [[NSMutableArray alloc] initWithCapacity:DEVICE_INDEX_MAXIMUM];
++	for (NSUInteger i = 0; i < DEVICE_INDEX_MAXIMUM; i++)
++	{
++		auto device = _class->device(static_cast<int>(i));
++		if (device != nullptr)
++		{
++			_devices[i] = [[InputDevice alloc] initWithDevice:device];
++		}
++	}
++
++	return self;
++}
++
++- (InputDevice *)addDeviceNamed:(NSString *)name
++{
++	std::string_view nameS(name.UTF8String);
++	auto device = &_class->add_device(nameS, nameS);
++	auto dev = [[InputDevice alloc] initWithDevice:device];
++	_devices[static_cast<NSUInteger>(device->devindex())] = dev;
++	return dev;
++}
++
++- (InputDevice *)deviceForIndex:(NSUInteger)index
++{
++	return _devices[index];
++}
++
++@end
++
++#pragma mark - headless_osd_interface implementation
++
++#pragma mark - construction / destruction
++
++headless_osd_interface::headless_osd_interface(osd_options &options)
++		: m_machine(nullptr), m_options(options), m_state(uninitialized), m_print_verbose(false),
++		  m_fps(60.0), m_target(nullptr), m_buffer(nullptr)
++{
++	osd_output::push(this);
++}
++
++headless_osd_interface::~headless_osd_interface()
++{
++	osd_output::pop(this);
++}
++
++#pragma mark - general overridables
++
++void headless_osd_interface::init(running_machine &machine)
++{
++	m_state = osd_state::initialized;
++	m_machine = &machine;
++	m_target = m_machine->render().target_alloc();
++	m_target->set_scale_mode(SCALE_INTEGER);
++	m_target->set_keepaspect(true);
++	// set starting view
++	auto viewindex = m_target->configured_view("auto", 0, 1);
++	m_target->set_view(viewindex);
++	os_log_debug(OE_LOG, "target allocated: %d x %d, view has_art: %{public}s",
++	             m_target->width(), m_target->height(),
++	             m_target->current_view().has_art() ? "Y" : "N");
++
++	// ensure we get called on the way out
++	machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(&headless_osd_interface::exit, this));
++
++	[m_delegate didInitialize];
++}
++
++void headless_osd_interface::update_dimensions()
++{
++	// check if the games video mode has changed
++	s32 temp_width, temp_height;
++	m_target->compute_minimum_size(temp_width, temp_height);
++	osd_dim new_size(temp_width, temp_height);
++	if (new_size == m_target_size)
++	{
++		// nothing has changed
++		return;
++	}
++
++	screen_device_enumerator iter(m_machine->root_device());
++	auto first_screen = iter.first();
++	if (!first_screen)
++	{
++		return;
++	}
++
++#if 0
++	{
++		auto i = 0;
++		for (auto &screen: iter)
++		{
++			auto aspect = screen.physical_aspect();
++			auto native = std::pair<unsigned, unsigned>(screen.visible_area().width(), screen.visible_area().height());
++			util::reduce_fraction(native.first, native.second);
++
++			bool rotated = (screen.orientation() & ORIENTATION_SWAP_XY) == ORIENTATION_SWAP_XY;
++			if (rotated)
++			{
++				std::swap(aspect.first, aspect.second);
++				std::swap(native.first, native.second);
++			}
++
++			os_log_debug(OE_LOG, "screen %d, dimensions %d x %d, "
++								 "visible area: %d x %d, "
++								 "physical aspect: %d:%d, "
++								 "native aspect: %d:%d, "
++								 "rotated: [%{public}s]",
++						 i,
++						 screen.width(), screen.height(),
++						 screen.visible_area().width(), screen.visible_area().height(),
++						 aspect.first, aspect.second,
++						 native.first, native.second,
++						 rotated ? "Y" : "N");
++			i++;
++		}
++	}
++#endif
++
++	double new_fps = ATTOSECONDS_TO_HZ(first_screen->refresh_attoseconds());
++
++	// for multiple screens, use the full dimensions
++	std::pair<unsigned, unsigned> aspect;
++
++	if (iter.count() > 1 || m_target->current_view().has_art())
++	{
++		// for multiple screens or those with artwork, use the full dimensions
++		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
++	}
++	else
++	{
++		aspect = first_screen->physical_aspect();
++		bool rotated =
++				(static_cast<unsigned>(first_screen->orientation()) & static_cast<unsigned>(ORIENTATION_SWAP_XY)) ==
++				ORIENTATION_SWAP_XY;
++		if (rotated)
++		{
++			std::swap(aspect.first, aspect.second);
++		}
++	}
++
++	os_log_debug(OE_LOG, "target size change, old_size=%dx%d, new_size=%dx%d, old_fps=%0.3f, new_fps=%0.3f",
++	             m_target_size.width(), m_target_size.height(),
++	             new_size.width(), new_size.height(),
++	             m_fps, new_fps);
++
++	// update state
++	m_fps = new_fps;
++	m_target_size = new_size;
++	m_target->set_bounds(m_target_size.width(), m_target_size.height(), 0.0);
++
++	[m_delegate didChangeDisplayBounds:NSMakeSize(new_size.width(), new_size.height()) fps:new_fps aspect:NSMakeSize(
++			aspect.first, aspect.second)];
++}
++
++void headless_osd_interface::update(bool skip_redraw)
++{
++	// check if the games video mode has changed
++	update_dimensions();
++
++	if (!skip_redraw && m_buffer != nullptr)
++	{
++		auto &prim = m_target->get_primitives();
++
++		u32 width = static_cast<u32>(m_target_size.width());
++		u32 height = static_cast<u32>(m_target_size.height());
++		u32 pitch = static_cast<u32>(m_buffer_size.width());
++
++		if (width > pitch || height > m_buffer_size.height())
++		{
++			os_log_error(OE_LOG, "target size %dx%d exceeds buffer size %dx%d",
++			             m_target_size.width(), m_target_size.height(),
++			             m_buffer_size.width(), m_buffer_size.height());
++			return;
++		}
++
++		prim.acquire_lock();
++		software_renderer<uint32_t, 0, 0, 0, 16, 8, 0>::draw_primitives(prim, m_buffer, width, height, pitch);
++		prim.release_lock();
++	}
++}
++
++void headless_osd_interface::input_update(bool relative_reset)
++{
++	// TODO(sgc): Potentially provide delegate API to update input?
++}
++
++void headless_osd_interface::exit()
++{
++	m_fps = 0.0;
++	m_target_size = osd_dim(0, 0);
++	m_state = osd_state::uninitialized;
++	m_machine->render().target_free(m_target);
++}
++
++#pragma mark - audio overridables
++
++osd::audio_info headless_osd_interface::sound_get_information()
++{
++	// the host plays 48 kHz stereo (see the core's audioSampleRate)
++	osd::audio_info result;
++	result.m_generation = 1;
++	result.m_default_sink = 1;
++	result.m_default_source = 0;
++
++	osd::audio_info::node_info node;
++	node.m_name = "OpenEmu";
++	node.m_display_name = "OpenEmu";
++	node.m_id = 1;
++	node.m_rate = osd::audio_rate_range{ 48000, 48000, 48000 };
++	node.m_port_names = { "FL", "FR" };
++	node.m_port_positions = { osd::channel_position::FL(), osd::channel_position::FR() };
++	node.m_sinks = 2;
++	node.m_sources = 0;
++	result.m_nodes.push_back(std::move(node));
++	return result;
++}
++
++void headless_osd_interface::sound_stream_sink_update(uint32_t id, const int16_t *buffer, int samples_this_frame)
++{
++	[m_delegate updateAudioBuffer:buffer samples:samples_this_frame];
++}
++
++#pragma mark - input overridables
++
++void headless_osd_interface::customize_input_type_list(std::vector<input_type_entry> &typelist)
++{
++	// This function is called on startup, before reading the
++	// configuration from disk. Scan the list, and change the
++	// default control mappings you want. It is quite possible
++	// you won't need to change a thing.
++
++	// loop over the defaults
++	for (input_type_entry &entry : typelist)
++	{
++		switch (entry.type())
++		{
++			// Select + X => UI_CONFIGURE (Menu)
++//			case IPT_UI_CONFIGURE:
++//				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_TAB, input_seq::or_code, JOYCODE_SELECT, JOYCODE_BUTTON3);
++//				break;
++//
++//				// Select + Start => CANCEL
++//			case IPT_UI_CANCEL:
++//				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_ESC, input_seq::or_code, JOYCODE_SELECT, JOYCODE_START);
++//				break;
++
++			// leave everything else alone
++			default:
++				break;
++		}
++	}
++}
++
++#pragma mark - video overridables
++
++void headless_osd_interface::set_buffer(void *buffer, osd_dim size)
++{
++	m_buffer = buffer;
++	m_buffer_size = size;
++}
++
++#pragma mark - font interface
++
++osd_font::ptr headless_osd_interface::font_alloc()
++{
++	return nullptr;
++}
++
++bool headless_osd_interface::get_font_families(std::string const &font_path,
++                                               std::vector<std::pair<std::string, std::string> > &result)
++{
++	return false;
++}
++
++#pragma mark - output
++
++void headless_osd_interface::output_callback(osd_output_channel channel,
++                                             util::format_argument_pack<char> const &args)
++{
++	static OSDLogLevel levels[OSD_OUTPUT_CHANNEL_COUNT] = {
++			[OSD_OUTPUT_CHANNEL_ERROR] = OSDLogLevelError,
++			[OSD_OUTPUT_CHANNEL_WARNING] = OSDLogLevelWarning,
++			[OSD_OUTPUT_CHANNEL_INFO] = OSDLogLevelInfo,
++			[OSD_OUTPUT_CHANNEL_DEBUG] = OSDLogLevelDebug,
++			[OSD_OUTPUT_CHANNEL_VERBOSE] = OSDLogLevelVerbose,
++			[OSD_OUTPUT_CHANNEL_LOG] = OSDLogLevelLog,
++	};
++
++	if (channel == OSD_OUTPUT_CHANNEL_VERBOSE && !m_print_verbose)
++	{
++		return;
++	}
++
++	auto str = string_format(args);
++	NSString *msg = [[NSString alloc] initWithBytesNoCopy:const_cast<char *>(str.c_str())
++	                                               length:str.length()
++	                                             encoding:NSUTF8StringEncoding
++	                                         freeWhenDone:NO];
++
++	[m_delegate logLevel:levels[channel] message:msg];
++}
++
++#pragma mark - Auditing
++
++@implementation Device
++
++- (instancetype)initWithDevice:(std::add_pointer_t<device_type> const)device
++{
++	if ((self = [super init]))
++	{
++		_name = @(device->fullname());
++		_shortName = @(device->shortname());
++	}
++	return self;
++}
++
++@end
++
++@implementation AuditRecord
++
++- (instancetype)initFromRecord:(media_auditor::audit_record const *)record
++{
++	if ((self = [super init]))
++	{
++		_name = @(record->name().c_str());
++		_mediaType = static_cast<AuditMediaType>(record->type());
++		_expectedLength = record->expected_length();
++		_status = (AuditStatus) record->status();
++		_substatus = (AuditSubstatus) record->substatus();
++		_expectedHashes = @(record->expected_hashes().macro_string().c_str());
++		_actualHashes = @(record->actual_hashes().macro_string().c_str());
++		_actualLength = record->actual_length();
++		std::add_pointer_t<device_type> const shared_device = record->shared_device();
++		if (shared_device)
++		{
++			_sharedDevice = [[Device alloc] initWithDevice:shared_device];
++		}
++	}
++
++	return self;
++}
++
++- (NSString *)description
++{
++	return _name;
++}
++
++@end
++
++@implementation AuditResult
++{
++	NSString *_description;
++}
++
+++ (instancetype)auditResultWithOptions:(Options *)options driverName:(NSString *)driverName
++{
++	driver_enumerator enumerator(*options.options, driverName.UTF8String);
++
++	if (enumerator.count() == 0)
++	{
++		return nil;
++	}
++
++	enumerator.next();
++
++	AuditResult *ar = [AuditResult new];
++	ar->_gameDriver = &enumerator.driver();
++
++	media_auditor auditor(enumerator);
++	ar->_summary = (AuditSummary) auditor.audit_media(AUDIT_VALIDATE_FAST);
++
++	NSMutableArray<AuditRecord *> *records = [NSMutableArray arrayWithCapacity:auditor.records().size()];
++
++	for (media_auditor::audit_record const &record : auditor.records())
++	{
++		[records addObject:[[AuditRecord alloc] initFromRecord:&record]];
++	}
++	ar->_records = records;
++	std::ostringstream output;
++	auditor.summarize(enumerator.driver().name, &output);
++	ar->_description = @(output.str().c_str());
++
++	return ar;
++}
++
++- (NSString *)description
++{
++	return _description;
++}
++
++@end
++
++@implementation Options
++{
++	osd_options *_options;
++}
++
++- (instancetype)init
++{
++	if ((self = [super init]))
++	{
++		_options = new osd_options();
++		_options->set_value(OPTION_PLUGINS, 0, OPTION_PRIORITY_HIGH); // disable LUA plugins
++		_options->set_value(OPTION_READCONFIG, 0, OPTION_PRIORITY_HIGH); // disable reading .ini files
++		_options->set_value(OPTION_SAMPLERATE, 48000, OPTION_PRIORITY_HIGH);
++		_options->set_value(OSDOPTION_VIDEO, OSDOPTVAL_NONE, OPTION_PRIORITY_MAXIMUM);
++		// disable throttling as OpenEmu handles frame pacing
++		_options->set_value(OPTION_THROTTLE, 0, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_CHEAT, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_SKIP_GAMEINFO, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_SKIP_WARNINGS, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_HEADLESS, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_READCFG, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_WRITECFG, 1, OPTION_PRIORITY_HIGH);
++		_options->set_value(OPTION_BIOS, "default", OPTION_PRIORITY_HIGH);
++	}
++	return self;
++}
++
++- (void)dealloc
++{
++	delete _options;
++}
++
++- (osd_options *)options
++{
++	return _options;
++}
++
++#pragma mark - core search path options
++
++#define PATH_PROPERTY(OPT, SET, GET) \
++- (void)set##SET##Path:(NSString *)path \
++{ \
++    _options->set_value(OPTION_ ## OPT, path.UTF8String, OPTION_PRIORITY_HIGH); \
++} \
++\
++- (NSString *)GET##Path \
++{ \
++    return @(_options->value(OPTION_ ## OPT)); \
++}
++
++#pragma mark - Core search path options
++
++PATH_PROPERTY(MEDIAPATH, Roms, roms)
++
++PATH_PROPERTY(HASHPATH, Hash, hash)
++
++PATH_PROPERTY(SAMPLEPATH, Samples, samples)
++
++PATH_PROPERTY(ARTPATH, Art, art)
++
++PATH_PROPERTY(CTRLRPATH, Controller, controller)
++
++PATH_PROPERTY(CHEATPATH, Cheat, cheat)
++
++PATH_PROPERTY(CROSSHAIRPATH, CrossHair, crossHair)
++
++PATH_PROPERTY(PLUGINSPATH, Plugins, plugins)
++
++PATH_PROPERTY(LANGUAGEPATH, Language, language)
++
++#undef PATH_PROPERTY
++
++#pragma mark - Core directory options
++
++#define DIRECTORY_PROPERTY(OPT, SET, GET) \
++- (void)set##SET##Directory:(NSString *)path \
++{ \
++    _options->set_value(OPTION_ ## OPT ## _DIRECTORY, path.UTF8String, OPTION_PRIORITY_HIGH); \
++} \
++\
++- (NSString *)GET##Directory \
++{ \
++    return @(_options->value(OPTION_ ## OPT ## _DIRECTORY)); \
++}
++
++DIRECTORY_PROPERTY(CFG, CFG, CFG)
++
++DIRECTORY_PROPERTY(NVRAM, NVRAM, NVRAM)
++
++DIRECTORY_PROPERTY(INPUT, Input, input)
++
++DIRECTORY_PROPERTY(STATE, State, state)
++
++DIRECTORY_PROPERTY(SNAPSHOT, Snapshot, snapshot)
++
++DIRECTORY_PROPERTY(DIFF, Diff, diff)
++
++DIRECTORY_PROPERTY(COMMENT, Comment, comment)
++
++#undef DIRECTORY_PROPERTY
++
++- (void)setBasePath:(NSString *)path
++{
++	_options->set_value(OPTION_MEDIAPATH, [NSString pathWithComponents:@[path, @"roms"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_HASHPATH, [NSString pathWithComponents:@[path, @"hash"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_SAMPLEPATH, [NSString pathWithComponents:@[path, @"samples"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_ARTPATH, [NSString pathWithComponents:@[path, @"artwork"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_CTRLRPATH, [NSString pathWithComponents:@[path, @"ctrlr"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_CHEATPATH, [NSString pathWithComponents:@[path, @"cheat"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_CROSSHAIRPATH, [NSString pathWithComponents:@[path, @"crosshair"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_PLUGINSPATH, [NSString pathWithComponents:@[path, @"plugins"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_LANGUAGEPATH, [NSString pathWithComponents:@[path, @"language"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++
++	// core directory options
++	_options->set_value(OPTION_CFG_DIRECTORY, [NSString pathWithComponents:@[path, @"cfg"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_NVRAM_DIRECTORY, [NSString pathWithComponents:@[path, @"nvram"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_INPUT_DIRECTORY, [NSString pathWithComponents:@[path, @"inp"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_STATE_DIRECTORY, [NSString pathWithComponents:@[path, @"sta"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_SNAPSHOT_DIRECTORY, [NSString pathWithComponents:@[path, @"snap"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_DIFF_DIRECTORY, [NSString pathWithComponents:@[path, @"diff"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++	_options->set_value(OPTION_COMMENT_DIRECTORY, [NSString pathWithComponents:@[path, @"comments"]].UTF8String,
++	                    OPTION_PRIORITY_HIGH);
++}
++
++#define INT_PROPERTY(OPT, SET, GET) \
++- (void)set##SET:(NSInteger)value \
++{ \
++    _options->set_value(OPTION_ ## OPT, static_cast<int>(value), OPTION_PRIORITY_HIGH); \
++} \
++\
++- (NSInteger)GET \
++{ \
++    return static_cast<NSInteger>(_options->int_value(OPTION_ ## OPT)); \
++}
++
++#define BOOL_PROPERTY(OPT, SET, GET) \
++- (void)set##SET:(BOOL)value \
++{ \
++    _options->set_value(OPTION_ ## OPT, static_cast<int>(value), OPTION_PRIORITY_HIGH); \
++} \
++\
++- (BOOL)GET \
++{ \
++    return static_cast<BOOL>(_options->int_value(OPTION_ ## OPT) != 0); \
++}
++
++#define FLOAT_PROPERTY(OPT, SET, GET) \
++- (void)set##SET:(float)value \
++{ \
++    _options->set_value(OPTION_ ## OPT, value, OPTION_PRIORITY_HIGH); \
++} \
++\
++- (float)GET \
++{ \
++    return _options->int_value(OPTION_ ## OPT); \
++}
++
++#define STRING_PROPERTY(OPT, SET, GET) \
++- (void)set##SET:(NSString *)value \
++{ \
++    _options->set_value(OPTION_ ## OPT, value.UTF8String, OPTION_PRIORITY_HIGH); \
++} \
++\
++- (float)GET \
++{ \
++    return @(_options->value(OPTION_ ## OPT)); \
++}
++
++#pragma mark - core performance options
++
++BOOL_PROPERTY(AUTOFRAMESKIP, AutoFrameskip, autoFrameskip);
++
++BOOL_PROPERTY(FRAMESKIP, Frameskip, frameskip);
++
++FLOAT_PROPERTY(SPEED, Speed, speed);
++
++#pragma mark - core render options
++
++BOOL_PROPERTY(KEEPASPECT, KeepAspect, keepAspect);
++
++BOOL_PROPERTY(UNEVENSTRETCH, UnevenStretch, unevenStretch);
++
++BOOL_PROPERTY(UNEVENSTRETCHX, UnevenStretchX, unevenStretchX);
++
++BOOL_PROPERTY(UNEVENSTRETCHY, UnevenStretchY, unevenStretchY);
++
++BOOL_PROPERTY(AUTOSTRETCHXY, AutoStretchXY, autoStretchXY);
++
++BOOL_PROPERTY(INTOVERSCAN, IntOverscan, intOverscan);
++
++INT_PROPERTY(INTSCALEX, IntScaleX, intScaleX);
++
++INT_PROPERTY(INTSCALEY, IntScaleY, intScaleY);
++
++#pragma mark - core rotation options
++
++BOOL_PROPERTY(ROTATE, Rotate, rotate);
++
++BOOL_PROPERTY(ROR, ROR, ROR);
++
++BOOL_PROPERTY(ROL, ROL, ROL);
++
++BOOL_PROPERTY(AUTOROR, AutoROR, autoROR);
++
++BOOL_PROPERTY(AUTOROL, AutoROL, autoROL);
++
++BOOL_PROPERTY(FLIPX, FlipX, flipX);
++
++BOOL_PROPERTY(FLIPY, FlipY, flipY);
++
++#pragma mark - core artwork options
++
++BOOL_PROPERTY(ARTWORK_CROP, ArtworkCrop, artworkCrop);
++
++@end
+diff --git a/src/osd/headless/options+private.h b/src/osd/headless/options+private.h
+new file mode 100644
+index 00000000..8042574f
+--- /dev/null
++++ b/src/osd/headless/options+private.h
+@@ -0,0 +1,11 @@
++#pragma once
++
++#include "public/options.h"
++
++class osd_options;
++
++@interface Options(Private)
++
++@property (nonatomic, readonly) osd_options *options;
++
++@end
+\ No newline at end of file
+diff --git a/src/osd/headless/public/DriverList.h b/src/osd/headless/public/DriverList.h
+new file mode 100644
+index 00000000..470e4779
+--- /dev/null
++++ b/src/osd/headless/public/DriverList.h
+@@ -0,0 +1,20 @@
++#import <Foundation/Foundation.h>
++
++NS_ASSUME_NONNULL_BEGIN
++
++@class GameDriver;
++
++OE_EXPORTED_CLASS
++@interface DriverList: NSObject
++
++@property(class, readonly, nonatomic) DriverList *shared;
++
++#pragma mark - Instance
++
++@property (readonly, nonatomic) NSArray<GameDriver *> *allDrivers;
++
++- (nullable GameDriver *)findWithName:(NSString *)name NS_RETURNS_RETAINED;
++
++@end
++
++NS_ASSUME_NONNULL_END
+diff --git a/src/osd/headless/public/driver.h b/src/osd/headless/public/driver.h
+new file mode 100644
+index 00000000..0e2f5704
+--- /dev/null
++++ b/src/osd/headless/public/driver.h
+@@ -0,0 +1,106 @@
++#import <Foundation/Foundation.h>
++#import "oecommon.h"
++
++NS_ASSUME_NONNULL_BEGIN
++
++typedef NS_OPTIONS(NSUInteger, GameDriverOptions)
++{
++	/*! coin-operated machine for public use */
++	GameDriverMachineTypeArcade = 0x00000008,
++
++	/*! console system */
++	GameDriverMachineTypeConsole = 0x00000010,
++
++	/*! any kind of computer including home computers, minis, calculators, etc */
++	GameDriverMachineTypeComputer = 0x00000018,
++
++	/*! any other emulated system (e.g. clock, satellite receiver, ...) */
++	GameDriverMachineTypeOther = 0x00000038,
++
++	/*! driver is not in a working state */
++	GameDriverMachineNotWorking = 0x00000040,
++
++	/*! system supports save states */
++	GameDriverMachineSupportsSave = 0x00000080,
++
++	/*! screen flip support is missing */
++	GameDriverMachineNoCocktail = 0x00000100,
++
++	/*! this driver entry is a BIOS root */
++	GameDriverMachineIsBiosRoot = 0x00000200,
++
++	/*! requires external artwork for key game elements */
++	GameDriverMachineRequiresArtwork = 0x00000400,
++
++	/*! artwork is clickable and requires mouse cursor */
++	GameDriverMachineClickableArtwork = 0x00000800,
++
++	/*! unofficial hardware modification */
++	GameDriverMachineUnofficial = 0x00001000,
++
++	/*! system has no sound output */
++	GameDriverMachineNoSoundHw = 0x00002000,
++
++	/*! contains mechanical parts (pinball, redemption games, ...) */
++	GameDriverMachineMechanical = 0x00004000,
++
++	/*! official system with blatantly incomplete hardware/software */
++	GameDriverMachineIsIncomplete = 0x00008000,
++
++	// flags that map to device feature flags
++
++	/*! game's protection not fully emulated */
++	GameDriverMachineUnemulatedProtection     = 0x0000000100000000,
++
++	/*! colors are totally wrong */
++	GameDriverMachineWrongColors              = 0x0000000200000000,
++
++	/*! colors are not 100% accurate, but close */
++	GameDriverMachineImperfectColors          = 0x0000000400000000,
++
++	/*! graphics are wrong/incomplete */
++	GameDriverMachineImperfectGraphics        = 0x0000000800000000,
++
++	/*! sound is missing */
++	GameDriverMachineNoSound                  = 0x0000001000000000,
++
++	/*! sound is known to be wrong */
++	GameDriverMachineImperfectSound           = 0x0000002000000000,
++
++	/*! controls are known to be imperfectly emulated */
++	GameDriverMachineImperfectControls        = 0x0000004000000000,
++
++	/*! any game/system that has unemulated audio capture device */
++	GameDriverMachineNoDeviceMicrophone       = 0x0000008000000000,
++
++	/*! any game/system that has unemulated hardcopy output device */
++	GameDriverMachineNoDevicePrinter          = 0x0000010000000000,
++
++	/*! any game/system that has unemulated local networking */
++	GameDriverMachineNoDeviceLan              = 0x0000020000000000,
++
++	/*! timing is known to be imperfectly emulated */
++	GameDriverMachineImperfectTiming          = 0x0000040000000000,
++
++	// useful combination flags
++
++	/*! flag combination for skeleton drivers */
++	GameDriverMachineIsSkeleton               = GameDriverMachineNoSound | GameDriverMachineNotWorking,
++
++	/*! flag combination for skeleton mechanical machines */
++	GameDriverMachineIsSkeletonMechanical    = GameDriverMachineIsSkeleton | GameDriverMachineMechanical | GameDriverMachineRequiresArtwork
++};
++
++
++OE_EXPORTED_CLASS
++@interface GameDriver: NSObject
++
++@property (nonatomic, readonly) NSString *name;
++@property (nonatomic, readonly) NSString *shortName;
++@property (nonatomic, readonly) NSString *fullName;
++@property (nonatomic, readonly, nullable) NSString *parent;
++@property (nonatomic, readonly) GameDriverOptions flags;
++
++@end
++
++NS_ASSUME_NONNULL_END
+diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
+new file mode 100644
+index 00000000..a8ef9ff6
+--- /dev/null
++++ b/src/osd/headless/public/headless.h
+@@ -0,0 +1,194 @@
++#import <Foundation/Foundation.h>
++#import "inputenum.h"
++#import "oecommon.h"
++
++@class Options, GameDriver;
++
++// callback for getting the value of an item on a device
++typedef int32_t (*ItemGetStateFunc)(void *device_internal, void *item_internal);
++
++extern NSString *const MAMEErrorDomain;
++
++typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
++{
++	MAMEErrorUnsupportedROM = -1,
++	MAMEErrorAuditFailed = -2,
++	MAMEErrorInvalidDriver = -3,
++	MAMEErrorMissingFiles = -4,
++	MAMEErrorFatal = -5,
++};
++
++@class OSD, AuditResult, AuditRecord, Device;
++
++typedef NS_ENUM(NSUInteger, OSDLogLevel)
++{
++	OSDLogLevelError,
++	OSDLogLevelWarning,
++	OSDLogLevelInfo,
++	OSDLogLevelDebug,
++	OSDLogLevelVerbose,
++	OSDLogLevelLog,
++	OSDLogLevelCount
++};
++
++
++@protocol OSDDelegate <NSObject>
++- (void)didInitialize;
++- (void)didChangeDisplayBounds:(NSSize)bounds fps:(double)fps aspect:(NSSize)aspect;
++- (void)updateAudioBuffer:(int16_t const *)buffer samples:(NSInteger)samples;
++- (void)logLevel:(OSDLogLevel)level message:(NSString *)msg;
++@end
++
++OE_EXPORTED_CLASS
++@interface InputDeviceItem : NSObject
++@end
++
++typedef int32_t (^InputCallback)(void);
++
++OE_EXPORTED_CLASS
++@interface InputDevice : NSObject
++
++@property (nonatomic, readonly) NSUInteger index;
++@property (nonatomic, readonly) NSString *name;
++@property (nonatomic, readonly) NSString *id;
++
++- (InputItemID)addItemNamed:(NSString *)name id:(InputItemID)iid withBlock:(InputCallback)block;
++- (InputItemID)addItemNamed:(NSString *)name id:(InputItemID)iid getter:(ItemGetStateFunc)getter context:(void *)context;
++@end
++
++OE_EXPORTED_CLASS
++@interface InputClass : NSObject
++- (InputDevice *)addDeviceNamed:(NSString *)name;
++- (InputDevice *)deviceForIndex:(NSUInteger)index;
++@end
++
++OE_EXPORTED_CLASS
++@interface OSD : NSObject
++
+++ (OSD *)shared;
++
++@property (nonatomic) id <OSDDelegate> delegate;
++@property (nonatomic) BOOL verboseOutput;
++
++@property (nonatomic, readonly) Options *options;
++
++#pragma mark - current game
++
++@property (nonatomic, readonly) InputClass *joystick;
++@property (nonatomic, readonly) InputClass *mouse;
++@property (nonatomic, readonly) InputClass *keyboard;
++@property (nonatomic, readonly) BOOL supportsSave;
++
++/*! Returns the current driver after calling setDriver:withAuditResult:error: */
++@property (nonatomic, readonly) GameDriver *driver;
++
++/*! maximum size of render buffer in pixels
++ */
++@property (nonatomic) NSSize maxBufferSize;
++
++- (BOOL)setDriver:(NSString *)driver withAuditResult:(AuditResult **)result error:(NSError **)error;
++- (BOOL)initializeWithError:(NSError **)error;
++- (void)unload;
++
++#pragma mark - save / load
++
++- (BOOL)loadStateFromFileAtPath:(NSString *)fileName error:(NSError **)error;
++- (BOOL)saveStateFromFileAtPath:(NSString *)fileName error:(NSError **)error;
++
++#pragma mark - serialization
++
++/*!
++ * Returns the number of bytes required to store a save state
++ */
++- (NSUInteger)stateSize;
++- (NSData *)serializeState;
++- (BOOL)deserializeState:(NSData *)data;
++
++#pragma mark - memory / cheats
++
++/// Returns RAM regions for the main CPU's program address space.
++/// Each dictionary has keys: @"address" (NSNumber), @"size" (NSNumber),
++/// @"name" (NSString), @"bytes" (NSData), @"bigEndian" (NSNumber<BOOL>).
++- (NSArray<NSDictionary *> *)readableMemoryRegions;
++
++/// Enable or disable a per-frame constant-write cheat.
++- (void)setCheat:(uint32_t)index address:(uint32_t)address value:(uint32_t)value size:(uint8_t)size enabled:(BOOL)enabled;
++
++#pragma mark - execution
++
++- (BOOL)execute;
++- (void)scheduleSoftReset;
++- (void)scheduleHardReset;
++- (void)setBuffer:(void *)buffer size:(NSSize)size;
++
++@end
++
++#pragma mark - Audit
++
++OE_EXPORTED_CLASS
++@interface Device : NSObject
++
++@property (nonatomic, readonly) NSString *name;
++@property (nonatomic, readonly) NSString *shortName;
++
++@end
++
++typedef NS_ENUM(NSInteger, AuditSummary)
++{
++	AuditSummaryCorrect = 0,
++	AuditSummaryNoneNeeded,
++	AuditSummaryBestAvailable,
++	AuditSummaryIncorrect,
++	AuditSummaryNotFound,
++};
++
++typedef NS_ENUM(NSInteger, AuditStatus)
++{
++	AuditStatusGood = 0,
++	AuditStatusFoundInvalid,
++	AuditStatusNotFound,
++	AuditStatusUnverified = 100,
++};
++
++typedef NS_ENUM(NSInteger, AuditSubstatus)
++{
++	AuditSubstatusGood = 0,
++	AuditSubstatusGoodNeedsRedump,
++	AuditSubstatusFoundNodump,
++	AuditSubstatusFoundBadChecksum,
++	AuditSubstatusFoundWrongLength,
++	AuditSubstatusNotFound,
++	AuditSubstatusNotFoundNoDump,
++	AuditSubstatusNotFoundOptional,
++	AuditSubstatusUnverified = 100,
++};
++
++typedef NS_ENUM(NSInteger, AuditMediaType)
++{
++	AuditMediaTypeROM = 0,
++	AuditMediaTypeDisk,
++	AuditMediaTypeSample,
++};
++
++OE_EXPORTED_CLASS
++@interface AuditRecord : NSObject
++
++@property (nonatomic, readonly) NSString *name;
++@property (nonatomic, readonly) AuditMediaType mediaType;
++@property (nonatomic, readonly) NSUInteger expectedLength;
++@property (nonatomic, readonly) AuditStatus status;
++@property (nonatomic, readonly) AuditSubstatus substatus;
++@property (nonatomic, readonly) NSString *expectedHashes;
++@property (nonatomic, readonly) NSString *actualHashes;
++@property (nonatomic, readonly) NSUInteger actualLength;
++@property (nonatomic, readonly) Device *sharedDevice;
++
++@end
++
++OE_EXPORTED_CLASS
++@interface AuditResult : NSObject
++
++@property (nonatomic, readonly) AuditSummary summary;
++@property (nonatomic, readonly) NSArray<AuditRecord *> *records;
++
++@end
+diff --git a/src/osd/headless/public/inputenum.h b/src/osd/headless/public/inputenum.h
+new file mode 100644
+index 00000000..c25d7c5c
+--- /dev/null
++++ b/src/osd/headless/public/inputenum.h
+@@ -0,0 +1,271 @@
++#pragma once
++
++// absolute devices return values between -65536 and +65536
++const int32_t InputAbsoluteMin = -65536;
++const int32_t InputAbsoluteMax = 65536;
++
++const int InputMaxAxis = 8;
++const int InputMaxButtons = 32;
++const int InputMaxHats = 4;
++const int InputMaxAddSwitch = 16;
++const int InputMaxAddAbsolute = 16;
++const int InputMaxAddRelative = 16;
++
++
++// standard item IDs from input_item_id
++typedef NS_ENUM(NSInteger, InputItemID)
++{
++	InputItemID_INVALID,
++	InputItemID_FIRST_VALID,
++
++	// standard keyboard IDs
++	InputItemID_A = InputItemID_FIRST_VALID,
++	InputItemID_B,
++	InputItemID_C,
++	InputItemID_D,
++	InputItemID_E,
++	InputItemID_F,
++	InputItemID_G,
++	InputItemID_H,
++	InputItemID_I,
++	InputItemID_J,
++	InputItemID_K,
++	InputItemID_L,
++	InputItemID_M,
++	InputItemID_N,
++	InputItemID_O,
++	InputItemID_P,
++	InputItemID_Q,
++	InputItemID_R,
++	InputItemID_S,
++	InputItemID_T,
++	InputItemID_U,
++	InputItemID_V,
++	InputItemID_W,
++	InputItemID_X,
++	InputItemID_Y,
++	InputItemID_Z,
++	InputItemID_0,
++	InputItemID_1,
++	InputItemID_2,
++	InputItemID_3,
++	InputItemID_4,
++	InputItemID_5,
++	InputItemID_6,
++	InputItemID_7,
++	InputItemID_8,
++	InputItemID_9,
++	InputItemID_F1,
++	InputItemID_F2,
++	InputItemID_F3,
++	InputItemID_F4,
++	InputItemID_F5,
++	InputItemID_F6,
++	InputItemID_F7,
++	InputItemID_F8,
++	InputItemID_F9,
++	InputItemID_F10,
++	InputItemID_F11,
++	InputItemID_F12,
++	InputItemID_F13,
++	InputItemID_F14,
++	InputItemID_F15,
++	InputItemID_F16,
++	InputItemID_F17,
++	InputItemID_F18,
++	InputItemID_F19,
++	InputItemID_F20,
++	InputItemID_ESC,
++	InputItemID_TILDE,
++	InputItemID_MINUS,
++	InputItemID_EQUALS,
++	InputItemID_BACKSPACE,
++	InputItemID_TAB,
++	InputItemID_OPENBRACE,
++	InputItemID_CLOSEBRACE,
++	InputItemID_ENTER,
++	InputItemID_COLON,
++	InputItemID_QUOTE,
++	InputItemID_BACKSLASH,
++	InputItemID_BACKSLASH2,
++	InputItemID_COMMA,
++	InputItemID_STOP,
++	InputItemID_SLASH,
++	InputItemID_SPACE,
++	InputItemID_INSERT,
++	InputItemID_DEL,
++	InputItemID_HOME,
++	InputItemID_END,
++	InputItemID_PGUP,
++	InputItemID_PGDN,
++	InputItemID_LEFT,
++	InputItemID_RIGHT,
++	InputItemID_UP,
++	InputItemID_DOWN,
++	InputItemID_0_PAD,
++	InputItemID_1_PAD,
++	InputItemID_2_PAD,
++	InputItemID_3_PAD,
++	InputItemID_4_PAD,
++	InputItemID_5_PAD,
++	InputItemID_6_PAD,
++	InputItemID_7_PAD,
++	InputItemID_8_PAD,
++	InputItemID_9_PAD,
++	InputItemID_SLASH_PAD,
++	InputItemID_ASTERISK,
++	InputItemID_MINUS_PAD,
++	InputItemID_PLUS_PAD,
++	InputItemID_DEL_PAD,
++	InputItemID_ENTER_PAD,
++	InputItemID_BS_PAD,
++	InputItemID_TAB_PAD,
++	InputItemID_00_PAD,
++	InputItemID_000_PAD,
++	InputItemID_COMMA_PAD,
++	InputItemID_EQUALS_PAD,
++	InputItemID_PRTSCR,
++	InputItemID_PAUSE,
++	InputItemID_LSHIFT,
++	InputItemID_RSHIFT,
++	InputItemID_LCONTROL,
++	InputItemID_RCONTROL,
++	InputItemID_LALT,
++	InputItemID_RALT,
++	InputItemID_SCRLOCK,
++	InputItemID_NUMLOCK,
++	InputItemID_CAPSLOCK,
++	InputItemID_LWIN,
++	InputItemID_RWIN,
++	InputItemID_MENU,
++	InputItemID_CANCEL,
++
++	// standard mouse/joystick/gun IDs
++	InputItemID_XAXIS,
++	InputItemID_YAXIS,
++	InputItemID_ZAXIS,
++	InputItemID_RXAXIS,
++	InputItemID_RYAXIS,
++	InputItemID_RZAXIS,
++	InputItemID_SLIDER1,
++	InputItemID_SLIDER2,
++	InputItemID_BUTTON1,
++	InputItemID_BUTTON2,
++	InputItemID_BUTTON3,
++	InputItemID_BUTTON4,
++	InputItemID_BUTTON5,
++	InputItemID_BUTTON6,
++	InputItemID_BUTTON7,
++	InputItemID_BUTTON8,
++	InputItemID_BUTTON9,
++	InputItemID_BUTTON10,
++	InputItemID_BUTTON11,
++	InputItemID_BUTTON12,
++	InputItemID_BUTTON13,
++	InputItemID_BUTTON14,
++	InputItemID_BUTTON15,
++	InputItemID_BUTTON16,
++	InputItemID_BUTTON17,
++	InputItemID_BUTTON18,
++	InputItemID_BUTTON19,
++	InputItemID_BUTTON20,
++	InputItemID_BUTTON21,
++	InputItemID_BUTTON22,
++	InputItemID_BUTTON23,
++	InputItemID_BUTTON24,
++	InputItemID_BUTTON25,
++	InputItemID_BUTTON26,
++	InputItemID_BUTTON27,
++	InputItemID_BUTTON28,
++	InputItemID_BUTTON29,
++	InputItemID_BUTTON30,
++	InputItemID_BUTTON31,
++	InputItemID_BUTTON32,
++	InputItemID_START,
++	InputItemID_SELECT,
++
++	// Hats
++	InputItemID_HAT1UP,
++	InputItemID_HAT1DOWN,
++	InputItemID_HAT1LEFT,
++	InputItemID_HAT1RIGHT,
++	InputItemID_HAT2UP,
++	InputItemID_HAT2DOWN,
++	InputItemID_HAT2LEFT,
++	InputItemID_HAT2RIGHT,
++	InputItemID_HAT3UP,
++	InputItemID_HAT3DOWN,
++	InputItemID_HAT3LEFT,
++	InputItemID_HAT3RIGHT,
++	InputItemID_HAT4UP,
++	InputItemID_HAT4DOWN,
++	InputItemID_HAT4LEFT,
++	InputItemID_HAT4RIGHT,
++
++	// Additional IDs
++	InputItemID_ADD_SWITCH1,
++	InputItemID_ADD_SWITCH2,
++	InputItemID_ADD_SWITCH3,
++	InputItemID_ADD_SWITCH4,
++	InputItemID_ADD_SWITCH5,
++	InputItemID_ADD_SWITCH6,
++	InputItemID_ADD_SWITCH7,
++	InputItemID_ADD_SWITCH8,
++	InputItemID_ADD_SWITCH9,
++	InputItemID_ADD_SWITCH10,
++	InputItemID_ADD_SWITCH11,
++	InputItemID_ADD_SWITCH12,
++	InputItemID_ADD_SWITCH13,
++	InputItemID_ADD_SWITCH14,
++	InputItemID_ADD_SWITCH15,
++	InputItemID_ADD_SWITCH16,
++
++	InputItemID_ADD_ABSOLUTE1,
++	InputItemID_ADD_ABSOLUTE2,
++	InputItemID_ADD_ABSOLUTE3,
++	InputItemID_ADD_ABSOLUTE4,
++	InputItemID_ADD_ABSOLUTE5,
++	InputItemID_ADD_ABSOLUTE6,
++	InputItemID_ADD_ABSOLUTE7,
++	InputItemID_ADD_ABSOLUTE8,
++	InputItemID_ADD_ABSOLUTE9,
++	InputItemID_ADD_ABSOLUTE10,
++	InputItemID_ADD_ABSOLUTE11,
++	InputItemID_ADD_ABSOLUTE12,
++	InputItemID_ADD_ABSOLUTE13,
++	InputItemID_ADD_ABSOLUTE14,
++	InputItemID_ADD_ABSOLUTE15,
++	InputItemID_ADD_ABSOLUTE16,
++
++	InputItemID_ADD_RELATIVE1,
++	InputItemID_ADD_RELATIVE2,
++	InputItemID_ADD_RELATIVE3,
++	InputItemID_ADD_RELATIVE4,
++	InputItemID_ADD_RELATIVE5,
++	InputItemID_ADD_RELATIVE6,
++	InputItemID_ADD_RELATIVE7,
++	InputItemID_ADD_RELATIVE8,
++	InputItemID_ADD_RELATIVE9,
++	InputItemID_ADD_RELATIVE10,
++	InputItemID_ADD_RELATIVE11,
++	InputItemID_ADD_RELATIVE12,
++	InputItemID_ADD_RELATIVE13,
++	InputItemID_ADD_RELATIVE14,
++	InputItemID_ADD_RELATIVE15,
++	InputItemID_ADD_RELATIVE16,
++
++	// generic other IDs
++	InputItemID_OTHER_SWITCH,
++	InputItemID_OTHER_AXIS_ABSOLUTE,
++	InputItemID_OTHER_AXIS_RELATIVE,
++	InputItemID_MAXIMUM,
++
++	// internal codes for sequences
++	InputItemID_SEQ_END,
++	InputItemID_SEQ_DEFAULT,
++	InputItemID_SEQ_NOT,
++	InputItemID_SEQ_OR,
++
++	// absolute maximum ID
++	InputItemID_ABSOLUTE_MAXIMUM = 0xfff
++};
+\ No newline at end of file
+diff --git a/src/osd/headless/public/oecommon.h b/src/osd/headless/public/oecommon.h
+new file mode 100644
+index 00000000..d41dd259
+--- /dev/null
++++ b/src/osd/headless/public/oecommon.h
+@@ -0,0 +1,18 @@
++#pragma once
++
++#ifndef OE_EXPORTED_CLASS
++#define OE_EXPORTED_CLASS     __attribute__((visibility("default")))
++#endif
++
++#ifndef OE_STATIC_ASSERT
++#define OE_STATIC_ASSERT(_condition, ...) static_assert(_condition, "" __VA_ARGS__)
++#endif
++
++#ifndef OE_ENUM_CHECK
++#define OE_ENUM_CHECK(_enum, _src, _c99enumcount) \
++    OE_STATIC_ASSERT(_enum::_src == _enum(_c99enumcount) )
++#endif
++
++#ifndef NSSTRING_NO_COPY
++#define NSSTRING_NO_COPY(x) [[NSString alloc] initWithBytesNoCopy:(void *)(x) length:strlen(x) encoding:NSUTF8StringEncoding freeWhenDone:NO]
++#endif
+\ No newline at end of file
+diff --git a/src/osd/headless/public/options.h b/src/osd/headless/public/options.h
+new file mode 100644
+index 00000000..3f06d068
+--- /dev/null
++++ b/src/osd/headless/public/options.h
+@@ -0,0 +1,84 @@
++#include <Foundation/Foundation.h>
++#import "oecommon.h"
++
++OE_EXPORTED_CLASS
++@interface Options : NSObject
++
++// macros
++
++#define PATH_PROPERTY(OPT, SET, GET) @property (nonatomic) NSString *GET##Path;
++#define DIRECTORY_PROPERTY(OPT, SET, GET) @property (nonatomic) NSString *GET##Directory;
++#define BOOL_PROPERTY(OPT, SET, GET) @property (nonatomic) BOOL GET
++#define INT_PROPERTY(OPT, SET, GET) @property (nonatomic) NSInteger GET
++#define FLOAT_PROPERTY(OPT, SET, GET) @property (nonatomic) float GET
++
++#pragma mark - paths
++
++PATH_PROPERTY(MEDIAPATH, Roms, roms)
++PATH_PROPERTY(HASHPATH, Hash, hash)
++PATH_PROPERTY(SAMPLEPATH, Samples, samples)
++PATH_PROPERTY(ARTPATH, Art, art)
++PATH_PROPERTY(CTRLRPATH, Controller, controller)
++PATH_PROPERTY(CHEATPATH, Cheat, cheat)
++PATH_PROPERTY(CROSSHAIRPATH, CrossHair, crossHair)
++PATH_PROPERTY(PLUGINSPATH, Plugins, plugins)
++PATH_PROPERTY(LANGUAGEPATH, Language, language)
++
++#pragma mark - directories
++
++DIRECTORY_PROPERTY(CFG, CFG, CFG)
++DIRECTORY_PROPERTY(NVRAM, NVRAM, NVRAM)
++DIRECTORY_PROPERTY(INPUT, Input, input)
++DIRECTORY_PROPERTY(STATE, State, state)
++DIRECTORY_PROPERTY(SNAPSHOT, Snapshot, snapshot)
++DIRECTORY_PROPERTY(DIFF, Diff, diff)
++DIRECTORY_PROPERTY(COMMENT, Comment, comment)
++
++/*! Sets a common base path for option paths
++ *
++ * @param path the common base path
++ */
++- (void)setBasePath:(NSString *)path;
++
++#pragma mark - core performance options
++
++BOOL_PROPERTY(AUTOFRAMESKIP, AutoFrameskip, autoFrameskip);
++BOOL_PROPERTY(FRAMESKIP, Frameskip, frameskip);
++FLOAT_PROPERTY(SPEED, Speed, speed);
++
++#pragma mark - core render options
++
++BOOL_PROPERTY(KEEPASPECT, KeepAspect, keepAspect);
++BOOL_PROPERTY(UNEVENSTRETCH, UnevenStretch, unevenStretch);
++BOOL_PROPERTY(UNEVENSTRETCHX, UnevenStretchX, unevenStretchX);
++BOOL_PROPERTY(UNEVENSTRETCHY, UnevenStretchY, unevenStretchY);
++BOOL_PROPERTY(AUTOSTRETCHXY, AutoStretchXY, autoStretchXY);
++BOOL_PROPERTY(INTOVERSCAN, IntOverscan, intOverscan);
++INT_PROPERTY(INTSCALEX, IntScaleX, intScaleX);
++INT_PROPERTY(INTSCALEY, IntScaleY, intScaleY);
++
++#pragma mark - core rotation options
++
++BOOL_PROPERTY(ROTATE, Rotate, rotate);
++BOOL_PROPERTY(ROR, ROR, ROR);
++BOOL_PROPERTY(ROL, ROL, ROL);
++BOOL_PROPERTY(AUTOROR, AutoROR, autoROR);
++BOOL_PROPERTY(AUTOROL, AutoROL, autoROL);
++BOOL_PROPERTY(FLIPX, FlipX, flipX);
++BOOL_PROPERTY(FLIPY, FlipY, flipY);
++
++#pragma mark - core artwork options
++
++BOOL_PROPERTY(ARTWORK_CROP, ArtworkCrop, artworkCrop);
++
++#pragma mark - core misc options
++
++BOOL_PROPERTY(CHEAT, Cheat, cheat);
++
++#undef PATH_PROPERTY
++#undef DIRECTORY_PROPERTY
++#undef BOOL_PROPERTY
++#undef INT_PROPERTY
++#undef FLOAT_PROPERTY
++
++@end
+diff --git a/src/osd/headless/public/osd.h b/src/osd/headless/public/osd.h
+new file mode 100644
+index 00000000..c3e45989
+--- /dev/null
++++ b/src/osd/headless/public/osd.h
+@@ -0,0 +1,6 @@
++
++#import "options.h"
++#import "inputenum.h"
++#import "driver.h"
++#import "DriverList.h"
++#import "headless.h"
+diff --git a/src/osd/headless/ui.bdc b/src/osd/headless/ui.bdc
+new file mode 100644
+index 0000000000000000000000000000000000000000..c635866dac7139cd7e550c1f4387f335193d8667
+GIT binary patch
+literal 21052
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/osd/modules/lib/osdlib_headless.cpp b/src/osd/modules/lib/osdlib_headless.cpp
+new file mode 100644
+index 00000000..d5dea62e
+--- /dev/null
++++ b/src/osd/modules/lib/osdlib_headless.cpp
+@@ -0,0 +1,250 @@
++// license:BSD-3-Clause
++// copyright-holders:Olivier Galibert, R. Belmont
++//============================================================
++//
++//  osdlib_headless.cpp - OS specific low level code for the
++//  headless OSD (OpenEmu): osdlib_macosx.cpp without the Carbon
++//  clipboard, which belongs to the host application
++//
++//============================================================
++
++#include "osdcore.h"
++#include "osdlib.h"
++
++#include <csignal>
++#include <cstdio>
++#include <cstdlib>
++#include <iomanip>
++#include <memory>
++
++#include <dlfcn.h>
++#include <sys/mman.h>
++#include <sys/sysctl.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++#include <mach/mach.h>
++#include <mach/mach_time.h>
++
++
++//============================================================
++//  osd_getenv
++//============================================================
++
++const char *osd_getenv(const char *name)
++{
++	return getenv(name);
++}
++
++//============================================================
++//  osd_setenv
++//============================================================
++
++int osd_setenv(const char *name, const char *value, int overwrite)
++{
++	return setenv(name, value, overwrite);
++}
++
++//============================================================
++//  osd_process_kill
++//============================================================
++
++void osd_process_kill()
++{
++	kill(getpid(), SIGKILL);
++}
++
++
++//============================================================
++//  osd_break_into_debugger
++//============================================================
++
++void osd_break_into_debugger(const char *message)
++{
++	pid_t const mypid = getpid();
++	int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, int(mypid) };
++	struct kinfo_proc info;
++	info.kp_proc.p_flag = 0;
++	std::size_t infosz = sizeof(info);
++	sysctl(mib, std::size(mib), &info, &infosz, nullptr, 0);
++	if (info.kp_proc.p_flag & P_TRACED)
++	{
++		printf("MAME exception: %s\n", message);
++		printf("Attempting to fall into debugger\n");
++		kill(mypid, SIGTRAP);
++	}
++	else
++	{
++		printf("Ignoring MAME exception: %s\n", message);
++	}
++}
++
++
++//============================================================
++//  osd_get_cache_line_size
++//============================================================
++
++std::pair<std::error_condition, unsigned> osd_get_cache_line_size() noexcept
++{
++	size_t result = 0;
++	size_t resultsize = sizeof(result);
++	int const err = sysctlbyname("hw.cachelinesize", &result, &resultsize, 0, 0);
++	if (!err)
++		return std::make_pair(std::error_condition(), unsigned(result));
++	else
++		return std::make_pair(std::error_condition(err, std::generic_category()), 0U);
++}
++
++
++//============================================================
++//  osd_get_clipboard_text
++//============================================================
++
++std::string osd_get_clipboard_text() noexcept
++{
++	// the host frontend owns the clipboard
++	return std::string();
++}
++
++
++//============================================================
++//  osd_set_clipboard_text
++//============================================================
++
++std::error_condition osd_set_clipboard_text(std::string_view text) noexcept
++{
++	// the host frontend owns the clipboard
++	return std::errc::function_not_supported;
++}
++
++
++//============================================================
++//  osd_getpid
++//============================================================
++
++int osd_getpid() noexcept
++{
++	return getpid();
++}
++
++
++namespace osd {
++
++namespace {
++
++class dynamic_module_posix_impl : public dynamic_module
++{
++public:
++	dynamic_module_posix_impl(std::vector<std::string> &&libraries) : m_libraries(std::move(libraries))
++	{
++	}
++
++	virtual ~dynamic_module_posix_impl() override
++	{
++		if (m_module)
++			dlclose(m_module);
++	}
++
++protected:
++	virtual generic_fptr_t get_symbol_address(char const *symbol) override
++	{
++		/*
++		 * given a list of libraries, if a first symbol is successfully loaded from
++		 * one of them, all additional symbols will be loaded from the same library
++		 */
++		if (m_module)
++			return reinterpret_cast<generic_fptr_t>(dlsym(m_module, symbol));
++
++		for (auto const &library : m_libraries)
++		{
++			void *const module = dlopen(library.c_str(), RTLD_LAZY);
++
++			if (module != nullptr)
++			{
++				generic_fptr_t const function = reinterpret_cast<generic_fptr_t>(dlsym(module, symbol));
++
++				if (function)
++				{
++					m_module = module;
++					return function;
++				}
++				else
++				{
++					dlclose(module);
++				}
++			}
++		}
++
++		return nullptr;
++	}
++
++private:
++	std::vector<std::string> m_libraries;
++	void *                   m_module = nullptr;
++};
++
++} // anonymous namespace
++
++
++bool invalidate_instruction_cache(void const *start, std::size_t size) noexcept
++{
++	char const *const begin(reinterpret_cast<char const *>(start));
++	char const *const end(begin + size);
++	__builtin___clear_cache(const_cast<char *>(begin), const_cast<char *>(end));
++	return true;
++}
++
++
++void *virtual_memory_allocation::do_alloc(std::initializer_list<std::size_t> blocks, unsigned intent, std::size_t &size, std::size_t &page_size) noexcept
++{
++	long const p(sysconf(_SC_PAGE_SIZE));
++	if (0 >= p)
++		return nullptr;
++	std::size_t s(0);
++	for (std::size_t b : blocks)
++		s += (b + p - 1) / p;
++	s *= p;
++	if (!s)
++		return nullptr;
++	void *const result(mmap(nullptr, s, PROT_NONE, MAP_ANON | MAP_SHARED, -1, 0));
++	if (result == (void *)-1)
++		return nullptr;
++	size = s;
++	page_size = p;
++	return result;
++}
++
++void virtual_memory_allocation::do_free(void *start, std::size_t size) noexcept
++{
++	munmap(start, size);
++}
++
++bool virtual_memory_allocation::do_set_access(void *start, std::size_t size, unsigned access) noexcept
++{
++	int prot((NONE == access) ? PROT_NONE : 0);
++	if (access & READ)
++		prot |= PROT_READ;
++	if (access & WRITE)
++		prot |= PROT_WRITE;
++	if (access & EXECUTE)
++		prot |= PROT_EXEC;
++	return mprotect(start, size, prot) == 0;
++}
++
++
++dynamic_module::ptr dynamic_module::open(std::vector<std::string> &&names)
++{
++	return std::make_unique<dynamic_module_posix_impl>(std::move(names));
++}
++
++} // namespace osd
++
++
++//============================================================
++//  osd_set_aggressive_input_focus
++//============================================================
++
++void osd_set_aggressive_input_focus(bool aggressive_focus)
++{
++	// the host frontend owns input focus
++}

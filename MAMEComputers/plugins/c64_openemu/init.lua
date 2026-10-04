@@ -286,8 +286,27 @@ end
 -- Plugin entry
 -------------------------------------------------------------------------------
 
+-- MAME 0.250 has emu.register_frame/register_stop; later versions replace
+-- them with notifiers whose subscriptions must be kept alive. Both last for
+-- the whole session.
+local subscriptions = {}
+local function on_frame(callback)
+    if emu.add_machine_frame_notifier then
+        table.insert(subscriptions, emu.add_machine_frame_notifier(callback))
+    else
+        emu.register_frame(callback)
+    end
+end
+local function on_stop(callback)
+    if emu.add_machine_stop_notifier then
+        table.insert(subscriptions, emu.add_machine_stop_notifier(callback))
+    else
+        emu.register_stop(callback)
+    end
+end
+
 function plugin.startplugin()
-    -- MAME 0.250's register_* callbacks last for the whole session (the core
+    -- The callbacks last for the whole session (the core
     -- restarts the machine on reset and on some menu changes), so register
     -- once and re-arm on every machine start.
     emu.register_prestart(function()
@@ -299,7 +318,7 @@ function plugin.startplugin()
         auto = nil
     end)
 
-    emu.register_frame(function()
+    on_frame(function()
         local machine = manager.machine
         if frame == 0 then
             profile = machine_profile(machine)
@@ -317,7 +336,7 @@ function plugin.startplugin()
         step_autostart(machine)
     end)
 
-    emu.register_stop(function()
+    on_stop(function()
         active = false
         auto = nil
     end)

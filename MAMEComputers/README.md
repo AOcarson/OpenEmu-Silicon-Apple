@@ -1,8 +1,9 @@
-# Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128, Macintosh (MAME 0.250)
+# Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128, Macintosh (MAME 0.250 or 0.289)
 
 `MAMEComputers.oecoreplugin` runs Apple //e, Apple IIgs, Commodore 64,
 Commodore 128 and early Macintosh software in OpenEmu using the same headless
-MAME 0.250 library as the Arcade core, built with only those drivers. One
+MAME 0.250 library as the Arcade core, built with only those drivers (or,
+optionally, MAME 0.289; see below). One
 core serves five systems, each with its own sidebar entry:
 
 - **Apple IIe**, **Apple IIgs**, **Commodore 128** and **Macintosh** — system
@@ -23,6 +24,34 @@ with `MAMEApple2` don't load in this core.
 ./Scripts/verify-core-installed.sh MAMEComputers --release
 ```
 
+### MAME 0.289 (experimental)
+
+The core can also be built on MAME 0.289 instead of 0.250:
+
+```sh
+./Scripts/build-mame-computers-core.sh --mame 0.289
+./Scripts/install-core.sh MAMEComputers --release
+```
+
+Leave off `--mame 0.289` (or pass `--mame 0.250`) to go back. Each version
+has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
+with `deps/mame-active` pointing at the one in use), so switching only
+rebuilds the core, not MAME. The first 0.289 build downloads that release
+(a few hundred MB) and compiles it from scratch. The installed core's version
+says which MAME it has: `0.250.5` or `0.289.5`.
+
+What to expect:
+
+- **Not faster.** Newer MAME is usually a little slower, because it emulates
+  more precisely. 0.289 is about accuracy (39 releases' worth of driver
+  fixes) and is the base for the later Macs on the roadmap.
+- **ROMs**: a few system ROM sets changed (see the table below). MAME's log
+  names any file it can't find.
+- **Saves**: save states don't carry over between the two versions. Disk
+  images, MAME's per-game settings and nvram do.
+- The 0.289 port (`patches/0289`) has only been compiled piecemeal so far,
+  not as a whole on a Mac, so the first build may still need fixes.
+
 The app itself must also be built from this checkout, since the Apple IIe
 system plugin ships inside OpenEmu.app:
 
@@ -39,7 +68,7 @@ permission across rebuilds. Quit OpenEmu before opening a new build.
 Each system must be switched on in Settings › Library › Available Libraries.
 
 `prepare-mame-computers-core.sh` (run by the build script) checks out the
-pinned MAME revision into `MAMEComputers/deps/mame` and applies, in order:
+pinned MAME 0.250 revision into `MAMEComputers/deps/mame` and applies, in order:
 
 1. `MAME/patches/mame-headless-clang21-apple.patch` (shared with Arcade)
 2. `MAMEComputers/patches/mame-headless-computers.patch` — adds
@@ -50,6 +79,15 @@ pinned MAME revision into `MAMEComputers/deps/mame` and applies, in order:
    per game); restarts the machine after a MAME hard reset; and restores most
    of MAME's main menu in headless mode.
 
+For MAME 0.289 it checks out mamedev's `mame0289` release into
+`MAMEComputers/deps/mame-0289` and applies `patches/0289/mame-headless-openemu.patch`
+(OpenEmu's headless OSD, ported from the 0.250 fork) and
+`patches/0289/mame-headless-computers.patch` (the same additions as above).
+0.289 needs no compiler fixes for current Xcode. On 0.289 the IIgs settings
+the patch adds sit one bit higher in `a2_config` (0.289 uses bit 3 for the
+ROM 3's "Disable CDA Control Panel" jumper); the core reads
+`OE_HEADLESS_MAME_VERSION` from the OSD headers to send the right bits.
+
 The build script also copies MAME's Lua plugin bootstrap (`boot.lua`) and stock
 plugins, plus this repo's plugins, into
 `~/Library/Application Support/OpenEmu/MAMEComputers/plugins`.
@@ -58,7 +96,8 @@ Logs: `log show --last 5m --info --predicate 'subsystem == "org.openemu.MAMEComp
 
 ## System ROMs
 
-Copy these zips, unchanged, from a MAME 0.250-compatible set into
+Copy these zips, unchanged, from a MAME 0.250-compatible set (0.289 for a
+0.289 build; see the changes after the tables) into
 `~/Library/Application Support/OpenEmu/BIOS`. If a game won't start, the log
 (see above) lists exactly which zips MAME could not find.
 
@@ -106,6 +145,13 @@ Copy these zips, unchanged, from a MAME 0.250-compatible set into
 
 System ROMs for these machines rarely change between MAME versions, so a
 newer set usually works.
+
+**Changes for MAME 0.289** (everything else above is the same):
+
+| Set | What changed |
+|---|---|
+| `apple2gs.zip`, `apple2gsr1.zip` | Need `344s0047.bin` (the Mega II video ROM) instead of `341-0132-d.e12`. Use sets from MAME 0.289 or later. |
+| `votrsc01a.zip` | The Mockingboard's speech chip, replacing `votrax.zip`. |
 
 ## Apple IIe
 
@@ -443,7 +489,7 @@ after the menu settings, so they win.
 
 Plugins live in `~/Library/Application Support/OpenEmu/MAMEComputers/plugins/`
 (one folder per plugin, with its `plugin.json` and `init.lua`). The build
-script installs MAME 0.250's own plugins there, plus the ones kept in this
+script installs the MAME version's own plugins there, plus the ones kept in this
 repo's `MAMEComputers/plugins/`: `apple2_joystick_fix` and `c64_openemu`.
 
 **Joystick timing fix.** `apple2_joystick_fix` is on for every Apple IIe
@@ -476,9 +522,10 @@ settings file can then add and remove plugins:
 
 Plugins start when the game is opened, so changes apply the next time you
 open it. A plugin that isn't installed is skipped (and logged) rather than
-stopping the game. These run on MAME 0.250's Lua API: a plugin written for a
-much newer MAME may need small changes (for example `emu.register_frame`
-instead of `emu.add_machine_frame_notifier`).
+stopping the game. On a 0.250 build plugins run on MAME 0.250's Lua API: a
+plugin written for a much newer MAME may need small changes (for example
+`emu.register_frame` instead of `emu.add_machine_frame_notifier`). The two
+plugins in this repo check which one MAME has, so they work on both builds.
 
 ### Multi-disk games
 

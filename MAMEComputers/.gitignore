@@ -22,4 +22,6 @@ DerivedData/
 
 # Prepared locally by Scripts/prepare-mame-computers-core.sh; too large to commit.
 deps/mame/
+deps/mame-0289/
+deps/mame-active
 mamecomputers_headless.dylib

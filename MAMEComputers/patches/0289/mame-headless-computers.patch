@@ -1,0 +1,877 @@
+diff --git a/src/frontend/mame/ui/mainmenu.cpp b/src/frontend/mame/ui/mainmenu.cpp
+index 66d80494..73a0654c 100644
+--- a/src/frontend/mame/ui/mainmenu.cpp
++++ b/src/frontend/mame/ui/mainmenu.cpp
+@@ -116,15 +116,43 @@ void menu_main::populate()
+ 
+ 	if (machine().options().headless())
+ 	{
++		// Everything that works inside a host frontend: no machine selection,
++		// favorites or quit, which the host owns.
++		item_append(_("menu-main", "Input Settings"), 0, (void *)INPUT_OPTIONS);
++
+ 		if (ui().machine_info().has_dips())
+-			item_append(_("Dip Switches"), "", 0, (void *)SETTINGS_DIP_SWITCHES);
++			item_append(_("menu-main", "DIP Switches"), 0, (void *)SETTINGS_DIP_SWITCHES);
+ 		if (ui().machine_info().has_configs())
+-			item_append(_("Machine Configuration"), "", 0, (void *)SETTINGS_DRIVER_CONFIG);
++			item_append(_("menu-main", "Machine Configuration"), 0, (void *)SETTINGS_DRIVER_CONFIG);
++
++		item_append(_("menu-main", "System Information"), 0, (void *)GAME_INFO);
++
++		for (device_image_interface &image : image_interface_enumerator(machine().root_device()))
++		{
++			if (image.user_loadable() || image.has_preset_images_selection())
++			{
++				item_append(_("menu-main", "Media Control"), 0, (void *)IMAGE_MENU_FILE_MANAGER);
++				break;
++			}
++		}
+ 
+-		item_append(_("Machine Information"), "", 0, (void *)GAME_INFO);
++		if (cassette_device_enumerator(machine().root_device()).first() != nullptr)
++			item_append(_("menu-main", "Tape Control"), 0, (void *)TAPE_CONTROL);
++
++		if (ui().machine_info().has_bioses())
++			item_append(_("menu-main", "BIOS Selection"), 0, (void *)BIOS_SELECTION);
++
++		if (slot_interface_enumerator(machine().root_device()).first() != nullptr)
++			item_append(_("menu-main", "Slot Devices"), 0, (void *)SLOT_DEVICES);
++
++		if (!ui().get_slider_list().empty())
++			item_append(_("menu-main", "Slider Controls"), 0, (void *)SLIDERS);
+ 
+ 		if (machine().options().cheat())
+-			item_append(_("Cheat"), "", 0, (void *)CHEAT);
++			item_append(_("menu-main", "Cheat Options"), 0, (void *)CHEAT);
++
++		if (machine_phase::RESET <= m_phase && machine().options().plugins() && !mame_machine_manager::instance()->lua()->get_menu().empty())
++			item_append(_("menu-main", "Plugin Options"), 0, (void *)PLUGINS);
+ 
+ 		item_append(menu_item_type::SEPARATOR);
+ 
+diff --git a/src/frontend/mame/ui/ui.cpp b/src/frontend/mame/ui/ui.cpp
+index 66335f09..0ab6b601 100644
+--- a/src/frontend/mame/ui/ui.cpp
++++ b/src/frontend/mame/ui/ui.cpp
+@@ -1378,6 +1378,49 @@ bool mame_ui_manager::show_menu(render_target &target)
+ }
+ 
+ 
++//-------------------------------------------------
++//  hide_menu - close any open menus and return
++//  to the in-game handler (used by host
++//  frontends of the headless build)
++//-------------------------------------------------
++
++void mame_ui_manager::hide_menu()
++{
++	if (!is_menu_active())
++		return;
++	ui::menu::stack_reset(*this);
++	m_ui_target = nullptr;
++	if (m_paused_for_menu && machine().paused())
++	{
++		machine().resume();
++		m_paused_for_menu = false;
++	}
++	machine().ui_input().reset();
++	set_handler(ui_callback_type::GENERAL, handler_callback_func(&mame_ui_manager::handler_ingame, this));
++}
++
++
++//-------------------------------------------------
++//  menu hooks for the headless OSD, which can't
++//  include this header
++//-------------------------------------------------
++
++bool headless_ui_menu_active(running_machine &machine)
++{
++	return static_cast<mame_ui_manager &>(machine.ui()).is_menu_active();
++}
++
++void headless_ui_show_menu(running_machine &machine)
++{
++	static_cast<mame_ui_manager &>(machine.ui()).show_menu();
++}
++
++void headless_ui_hide_menu(running_machine &machine)
++{
++	static_cast<mame_ui_manager &>(machine.ui()).hide_menu();
++}
++
++
+ //-------------------------------------------------
+ //  activate_menu - show the menus
+ //-------------------------------------------------
+diff --git a/src/frontend/mame/ui/ui.h b/src/frontend/mame/ui/ui.h
+index a4fec448..979f4af5 100644
+--- a/src/frontend/mame/ui/ui.h
++++ b/src/frontend/mame/ui/ui.h
+@@ -204,6 +204,7 @@ public:
+ 	bool show_profiler() const;
+ 	bool show_menu();
+ 	bool show_menu(render_target &target);
++	void hide_menu();
+ 	virtual bool is_menu_active() override;
+ 	bool can_paste();
+ 	void image_handler_ingame();
+diff --git a/src/mame/apple/apple2gs.cpp b/src/mame/apple/apple2gs.cpp
+index 5af8db96..65933a44 100644
+--- a/src/mame/apple/apple2gs.cpp
++++ b/src/mame/apple/apple2gs.cpp
+@@ -496,6 +496,47 @@ private:
+ 	void raise_irq(int irq);
+ 	void lower_irq(int irq);
+ 	void update_speed();
++
++	// OpenEmu settings in a2_config. 0.289 uses bit 3 for the ROM 3's "Disable
++	// CDA Control Panel" jumper, so these sit one bit higher than in the
++	// 0.250 patch: bit 4 Normal speed, bit 5 timing fix, bits 6-8 range.
++	//
++	// "Apple II software speed: Normal" - 1 MHz except while the disk
++	// controller (the IWM) is in use, when the speed register applies as
++	// usual: the firmware runs 3.5" drives at full speed and slows for 5.25"
++	// ones. Like a IIgs whose Control Panel is set to Normal. Disk activity,
++	// not the drive enable, decides, since software can leave a drive enabled
++	// while the game plays.
++	// The KEGS/AppleWin maximum-paddle workaround ("Joystick Timing Fix"): a
++	// joystick axis at 255 holds its paddle timer for 287 units, as some games
++	// time the paddle with a loop that never sees 255 on exact timing, so full
++	// right/down never registers.
++	// "Joystick range" scales how far from centre a pushed stick reads, like
++	// the joystick scale in KEGS/GSplus: some games misread a stick at full
++	// deflection (Rampage reads full down as up). The timing fix only applies
++	// at 100%.
++	static constexpr ioport_value OE_NORMAL_SPEED = 0x010;
++	static constexpr ioport_value OE_JOYSTICK_FIX = 0x020;
++	static constexpr int OE_JOYSTICK_RANGE_SHIFT = 6;
++
++	double paddle_units(u8 value)
++	{
++		static const int percent[8] = { 100, 90, 80, 70, 60, 50, 100, 100 };
++		ioport_value const config = m_sysconfig->read();
++		int const range = percent[(config >> OE_JOYSTICK_RANGE_SHIFT) & 7];
++		if (range < 100)
++			return 128.0 + (double(value) - 128.0) * range / 100.0;
++		return (value == 255 && (config & OE_JOYSTICK_FIX)) ? 287.0 : double(value);
++	}
++
++	attotime m_last_iwm_access = attotime::zero;
++	bool m_normal_forced = false;
++	void note_iwm_access() { m_last_iwm_access = machine().time(); }
++	bool normal_speed_forced()
++	{
++		return (m_sysconfig->read() & OE_NORMAL_SPEED)
++				&& (machine().time() - m_last_iwm_access) > attotime::from_msec(20);
++	}
+ 	int get_vpos();
+ 	void process_clock();
+ 	void clear_vgcint(u8 data);
+@@ -904,7 +945,7 @@ void apple2gs_state::machine_reset()
+ 	{
+ 		static const int speeds[4] = { 7000000, 8000000, 12000000, 16000000 };
+ 		m_accel_present = true;
+-		int idxSpeed = (m_sysconfig->read() >> 1);
++		int idxSpeed = (m_sysconfig->read() >> 1) & 3;  // OpenEmu: higher bits hold the OpenEmu settings
+ 		m_accel_speed = speeds[idxSpeed];
+ 		accel_reset();
+ 	}
+@@ -961,6 +1002,14 @@ void apple2gs_state::update_speed()
+ 		m_last_speed = false;
+ 	}
+ 
++	// OpenEmu: Normal speed (see normal_speed_forced)
++	m_normal_forced = normal_speed_forced();
++	if (m_normal_forced)
++	{
++		new_speed = A2GS_1M.value();
++		m_last_speed = false;
++	}
++
+ 	m_maincpu->set_unscaled_clock(new_speed, !m_last_speed); // re-align with PH0
+ }
+ 
+@@ -1023,6 +1072,10 @@ TIMER_DEVICE_CALLBACK_MEMBER(apple2gs_state::apple2_interrupt)
+ 	if (scanline == BORDER_TOP)
+ 	{
+ 		m_vbl = false;
++
++		// OpenEmu: pick up a change to the speed setting (see normal_speed_forced)
++		if (normal_speed_forced() != m_normal_forced)
++			update_speed();
+ 	}
+ 	else if (scanline == (192+BORDER_TOP))
+ 	{
+@@ -1467,19 +1520,19 @@ void apple2gs_state::do_io(int offset)
+ 			// 558 monostable one-shot timers; a running timer cannot be restarted
+ 			if (machine().time().as_double() >= m_joystick_x1_time)
+ 			{
+-				m_joystick_x1_time = machine().time().as_double() + m_x_calibration * m_gameio->pdl0_r();
++				m_joystick_x1_time = machine().time().as_double() + m_x_calibration * paddle_units(m_gameio->pdl0_r());
+ 			}
+ 			if (machine().time().as_double() >= m_joystick_y1_time)
+ 			{
+-				m_joystick_y1_time = machine().time().as_double() + m_y_calibration * m_gameio->pdl1_r();
++				m_joystick_y1_time = machine().time().as_double() + m_y_calibration * paddle_units(m_gameio->pdl1_r());
+ 			}
+ 			if (machine().time().as_double() >= m_joystick_x2_time)
+ 			{
+-				m_joystick_x2_time = machine().time().as_double() + m_x_calibration * m_gameio->pdl2_r();
++				m_joystick_x2_time = machine().time().as_double() + m_x_calibration * paddle_units(m_gameio->pdl2_r());
+ 			}
+ 			if (machine().time().as_double() >= m_joystick_y2_time)
+ 			{
+-				m_joystick_y2_time = machine().time().as_double() + m_y_calibration * m_gameio->pdl3_r();
++				m_joystick_y2_time = machine().time().as_double() + m_y_calibration * paddle_units(m_gameio->pdl3_r());
+ 			}
+ 			[[fallthrough]];
+ 		case 0x20:
+@@ -2284,6 +2337,11 @@ u8 apple2gs_state::c080_r(offs_t offset)
+ 		{
+ 			accel_slot(slot);
+ 
++			if (slot == 6)
++			{
++				note_iwm_access();  // OpenEmu: see normal_speed_forced
++			}
++
+ 			if (slot >= 4)
+ 			{
+ 				if ((offset & 0xf) == 0x9)
+@@ -2336,6 +2394,11 @@ void apple2gs_state::c080_w(offs_t offset, u8 data)
+ 	{
+ 		accel_slot(slot);
+ 
++		if (slot == 6 && !machine().side_effects_disabled())
++		{
++			note_iwm_access();  // OpenEmu: see normal_speed_forced
++		}
++
+ 		if (slot >= 4)
+ 		{
+ 			if ((offset & 0xf) == 0x9)
+@@ -3736,6 +3799,19 @@ INPUT_PORTS_START( apple2gs )
+ 	PORT_CONFSETTING(0x03, "8 MHz ZipGS")
+ 	PORT_CONFSETTING(0x05, "12 MHz ZipGS")
+ 	PORT_CONFSETTING(0x07, "16 MHz ZipGS")
++	PORT_CONFNAME(0x010, 0x000, "Apple II software speed")
++	PORT_CONFSETTING(0x000, "As set by the software (Fast)")
++	PORT_CONFSETTING(0x010, "Normal (1 MHz, disks at full speed)")
++	PORT_CONFNAME(0x020, 0x000, "Joystick timing fix (255 = 287)")
++	PORT_CONFSETTING(0x000, DEF_STR(Off))
++	PORT_CONFSETTING(0x020, DEF_STR(On))
++	PORT_CONFNAME(0x1c0, 0x000, "Joystick range")
++	PORT_CONFSETTING(0x000, "100%")
++	PORT_CONFSETTING(0x040, "90%")
++	PORT_CONFSETTING(0x080, "80%")
++	PORT_CONFSETTING(0x0c0, "70%")
++	PORT_CONFSETTING(0x100, "60%")
++	PORT_CONFSETTING(0x140, "50%")
+ INPUT_PORTS_END
+ 
+ INPUT_PORTS_START( apple2gsrom3 )
+diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
+index 532701be..e1fe9b32 100644
+--- a/src/osd/headless/headless.mm
++++ b/src/osd/headless/headless.mm
+@@ -50,6 +50,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
+ 
+ static os_log_t OE_LOG;
+ 
++// MAME menu hooks, defined in frontend/mame/ui/ui.cpp (which this file can't include).
++bool headless_ui_menu_active(running_machine &machine);
++void headless_ui_show_menu(running_machine &machine);
++void headless_ui_hide_menu(running_machine &machine);
++
+ NSString *const MAMEErrorDomain = @"org.openemu.mame.ErrorDomain";
+ 
+ void osd_setup_osd_specific_emu_options(emu_options &opts)
+@@ -201,9 +206,13 @@ public:
+ 	void set_delegate(id <OSDDelegate> delegate)
+ 	{ m_delegate = delegate; }
+ 
++	// shows only the screen with this tag (machines with several screens)
++	bool show_screen(const char *tag);
++
+ protected:
+ 
+ 	void update_dimensions();
++	screen_device *view_screen() const;
+ 
+ 	// internal state
+ 	running_machine *m_machine;
+@@ -221,6 +230,7 @@ protected:
+ 	void *m_buffer;
+ 	osd_dim m_buffer_size;
+ 	osd_dim m_target_size;
++	unsigned m_target_view = ~0U;
+ 
+ 	// delegate
+ 	id <OSDDelegate> m_delegate;
+@@ -259,8 +269,11 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	InputClass *_keyboard;
+ 
+ 	NSMutableDictionary<NSNumber *, NSDictionary *> *_activeCheats;
++	NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_configOverrides; // tag -> [mask, value] pairs
++	BOOL _configDirty;
+ 
+ 	bool _isEmpty;
++	bool _luaStarted;
+ }
+ 
+ + (void)initialize
+@@ -284,7 +297,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 
+ 	_manager = mame_machine_manager::instance(*_options.options, *_osd);
+ 	_manager->start_http_server();
+-	_manager->start_luaengine();
++	// The Lua engine (and with it MAME's plugins) starts with the first machine,
++	// so a core can set the plugin options before then. See -_startLuaEngine.
+ 
+ 	// arbitrary size
+ 	_maxBufferSize = NSMakeSize(2048, 2048);
+@@ -471,6 +485,7 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	_keyboard = nil;
+ 	_supportsSave = NO;
+ 	@synchronized (self) { [_activeCheats removeAllObjects]; }
++	@synchronized (self) { _configDirty = YES; }  // the next machine needs them too
+ 
+ 	_manager->set_machine(nullptr);
+ 
+@@ -488,6 +503,31 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	}
+ }
+ 
++/*! Starts MAME's Lua engine once per process, which also starts any plugins
++ *  enabled through the "plugins" and "plugin" options at that moment. */
++- (void)_startLuaEngine
++{
++	if (_luaStarted)
++	{
++		return;
++	}
++	_luaStarted = true;
++
++	try
++	{
++		_manager->start_luaengine();
++	}
++	catch (emu_fatalerror &ex)
++	{
++		// Typically an unknown name in the "plugin" option. Carry on without
++		// the requested plugins rather than failing to start the machine.
++		os_log_error(OE_LOG, "could not start Lua plugins: %{public}s", ex.what());
++		_options.options->set_value(OPTION_PLUGIN, "", OPTION_PRIORITY_MAXIMUM);
++		_options.options->set_value(OPTION_NO_PLUGIN, "", OPTION_PRIORITY_MAXIMUM);
++		_manager->start_luaengine();
++	}
++}
++
+ - (BOOL)_initializeGame:(NSError **)error
+ {
+ 	[self _freeMachine];
+@@ -510,6 +550,8 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 		valid.check_shared_source(*_gameDriver);
+ 	}
+ 
++	[self _startLuaEngine];
++
+ 	_config = new machine_config(*_gameDriver, *_options.options);
+ 	_machine = new running_machine(*_config, *_manager);
+ 	_manager->set_machine(_machine);
+@@ -604,6 +646,69 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	}
+ }
+ 
++- (void)setConfigPort:(NSString *)tag mask:(uint32_t)mask value:(uint32_t)value
++{
++	@synchronized (self) {
++		if (!_configOverrides) _configOverrides = [NSMutableDictionary new];
++		NSMutableArray<NSNumber *> *pairs = [_configOverrides[tag] mutableCopy] ?: [NSMutableArray new];
++		BOOL replaced = NO;
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			if (pairs[i].unsignedIntValue == mask) {
++				pairs[i + 1] = @(value);
++				replaced = YES;
++			}
++		}
++		if (!replaced) {
++			[pairs addObject:@(mask)];
++			[pairs addObject:@(value)];
++		}
++		_configOverrides[tag] = pairs;
++		_configDirty = YES;
++	}
++}
++
++- (void)removeConfigPort:(NSString *)tag mask:(uint32_t)mask
++{
++	@synchronized (self) {
++		NSMutableArray<NSNumber *> *pairs = [_configOverrides[tag] mutableCopy];
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			if (pairs[i].unsignedIntValue == mask) {
++				[pairs removeObjectsInRange:NSMakeRange(i, 2)];
++				break;
++			}
++		}
++		if (pairs) _configOverrides[tag] = pairs;
++	}
++}
++
++- (void)_applyConfigOverrides
++{
++	NSDictionary<NSString *, NSArray<NSNumber *> *> *overrides;
++	@synchronized (self) {
++		if (!_configDirty || !_machine) return;
++		_configDirty = NO;
++		overrides = [_configOverrides copy];
++	}
++
++	for (NSString *tag in overrides) {
++		auto const found = _machine->ioport().ports().find(std::string(tag.UTF8String));
++		if (found == _machine->ioport().ports().end()) continue;
++		ioport_port *port = found->second.get();
++		NSArray<NSNumber *> *pairs = overrides[tag];
++		for (NSUInteger i = 0; i + 1 < pairs.count; i += 2) {
++			ioport_value mask = pairs[i].unsignedIntValue;
++			ioport_value value = pairs[i + 1].unsignedIntValue;
++			for (ioport_field &field : port->fields()) {
++				if (field.mask() != mask) continue;
++				ioport_field::user_settings settings;
++				field.get_user_settings(settings);
++				settings.value = value & mask;
++				field.set_user_settings(settings);
++			}
++		}
++	}
++}
++
+ - (void)_applyCheats
+ {
+ 	NSDictionary *cheats;
+@@ -641,9 +746,21 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 		};
+ 	}
+ 
++	[self _applyConfigOverrides];
+ 	[self _applyCheats];
+ 	_machine->headless_run();
+ 
++	// A hard reset (e.g. "Reset System" after changing slot devices in MAME's
++	// menu) or an exit request ends the running machine. Start a new one with
++	// the current options, as MAME's own frontend loop would.
++	if (_machine->hard_reset_pending() || _machine->exit_pending())
++	{
++		if (![self _initializeGame:nil])
++		{
++			return NO;
++		}
++	}
++
+ 	return YES;
+ }
+ 
+@@ -658,6 +775,106 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+ 	[self _initializeGame:nil];
+ }
+ 
++#pragma mark - media
++
++- (device_image_interface *)_imageDeviceNamed:(NSString *)deviceName
++{
++	if (_machine == nullptr || deviceName.length == 0)
++	{
++		return nullptr;
++	}
++
++	std::string const name(deviceName.UTF8String);
++	for (device_image_interface &image : image_interface_enumerator(_machine->root_device()))
++	{
++		if (image.brief_instance_name() == name || image.instance_name() == name)
++		{
++			return &image;
++		}
++	}
++	return nullptr;
++}
++
++- (BOOL)loadMediaAtPath:(NSString *)path forDevice:(NSString *)deviceName error:(NSError **)error
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image == nullptr)
++	{
++		if (error)
++		{
++			NSString *desc = [NSString stringWithFormat:@"The running system has no media device named \"%@\".", deviceName];
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorMediaLoadFailed
++			                         userInfo:@{NSLocalizedDescriptionKey: desc}];
++		}
++		return NO;
++	}
++
++	auto const [err, message] = image->load(std::string_view(path.fileSystemRepresentation));
++	if (err)
++	{
++		NSString *reason = !message.empty() ? @(message.c_str()) : @(err.message().c_str());
++		os_log_error(OE_LOG, "failed to load %{public}@ into %{public}@: %{public}@", path, deviceName, reason);
++		if (error)
++		{
++			NSString *desc = [NSString stringWithFormat:@"MAME could not load \"%@\" (%@).", path.lastPathComponent, reason];
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorMediaLoadFailed
++			                         userInfo:@{NSLocalizedDescriptionKey: desc}];
++		}
++		return NO;
++	}
++
++	return YES;
++}
++
++- (void)unloadMediaForDevice:(NSString *)deviceName
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image != nullptr && image->exists())
++	{
++		image->unload();
++	}
++}
++
++- (NSString *)mediaPathForDevice:(NSString *)deviceName
++{
++	device_image_interface *image = [self _imageDeviceNamed:deviceName];
++	if (image == nullptr || !image->exists())
++	{
++		return nil;
++	}
++	return @(image->filename());
++}
++
++#pragma mark - MAME menu
++
++- (BOOL)menuActive
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return NO;
++	return headless_ui_menu_active(*_machine);
++}
++
++- (void)showMenu
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return;
++	headless_ui_show_menu(*_machine);
++}
++
++- (BOOL)showScreenWithTag:(NSString *)tag
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return NO;
++	return _osd->show_screen(tag.UTF8String);
++}
++
++- (void)hideMenu
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
++		return;
++	headless_ui_hide_menu(*_machine);
++}
++
+ + (OSD *)shared
+ {
+ 	static OSD *shared;
+@@ -820,18 +1037,32 @@ void headless_osd_interface::update_dimensions()
+ 	s32 temp_width, temp_height;
+ 	m_target->compute_minimum_size(temp_width, temp_height);
+ 	osd_dim new_size(temp_width, temp_height);
+-	if (new_size == m_target_size)
++
++	// The machine runs one frame per frame of its primary (first) screen, so
++	// that screen sets the frame rate, whichever screen the view shows. Its
++	// rate can change as the emulated software reprograms its video chip.
++	screen_device_enumerator iter(m_machine->root_device());
++	screen_device *primary_screen = iter.first();
++	if (!primary_screen)
++	{
++		return;
++	}
++	double new_fps = ATTOSECONDS_TO_HZ(primary_screen->refresh_attoseconds());
++
++	if (new_size == m_target_size && m_target->view() == m_target_view && new_fps == m_fps)
+ 	{
+ 		// nothing has changed
+ 		return;
+ 	}
+ 
+-	screen_device_enumerator iter(m_machine->root_device());
+-	auto first_screen = iter.first();
++	// The shape comes from the screen the view shows, when it shows just one.
++	screen_device *first_screen = view_screen();
++	bool const single_screen_view = first_screen != nullptr;
+ 	if (!first_screen)
+ 	{
+-		return;
++		first_screen = primary_screen;
+ 	}
++	m_target_view = m_target->view();
+ 
+ #if 0
+ 	{
+@@ -865,12 +1096,11 @@ void headless_osd_interface::update_dimensions()
+ 	}
+ #endif
+ 
+-	double new_fps = ATTOSECONDS_TO_HZ(first_screen->refresh_attoseconds());
+ 
+ 	// for multiple screens, use the full dimensions
+ 	std::pair<unsigned, unsigned> aspect;
+ 
+-	if (iter.count() > 1 || m_target->current_view().has_art())
++	if ((iter.count() > 1 && !single_screen_view) || m_target->current_view().has_art())
+ 	{
+ 		// for multiple screens or those with artwork, use the full dimensions
+ 		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
+@@ -901,6 +1131,45 @@ void headless_osd_interface::update_dimensions()
+ 			aspect.first, aspect.second)];
+ }
+ 
++// The one screen the current view shows, or nullptr if it shows several.
++screen_device *headless_osd_interface::view_screen() const
++{
++	screen_device *found = nullptr;
++	for (screen_device &screen : screen_device_enumerator(m_machine->root_device()))
++	{
++		if (m_target->current_view().has_visible_screen(screen))
++		{
++			if (found)
++				return nullptr;
++			found = &screen;
++		}
++	}
++	return found;
++}
++
++bool headless_osd_interface::show_screen(const char *tag)
++{
++	if (m_machine == nullptr || m_target == nullptr)
++		return false;
++	screen_device *screen = m_machine->root_device().subdevice<screen_device>(tag);
++	if (screen == nullptr)
++		return false;
++
++	unsigned const original = m_target->view();
++	for (unsigned i = 0; m_target->view_name(i) != nullptr; i++)
++	{
++		m_target->set_view(i);
++		layout_view &view = m_target->current_view();
++		if (view.visible_screen_count() == 1 && view.has_visible_screen(*screen))
++		{
++			update_dimensions();
++			return true;
++		}
++	}
++	m_target->set_view(original);
++	return false;
++}
++
+ void headless_osd_interface::update(bool skip_redraw)
+ {
+ 	// check if the games video mode has changed
+@@ -993,6 +1262,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
+ //				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_ESC, input_seq::or_code, JOYCODE_SELECT, JOYCODE_START);
+ //				break;
+ 
++			// MAME also feeds the mouse into analog joysticks and paddles by
++			// default. OpenEmu's mouse (the Apple IIgs's) would then nudge the
++			// joystick whenever the pointer moved over the game, so analog
++			// controls take only the joystick here.
++			case IPT_AD_STICK_X:
++			case IPT_PADDLE:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_X_INDEXED(entry.player()));
++				break;
++			case IPT_AD_STICK_Y:
++			case IPT_PADDLE_V:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_Y_INDEXED(entry.player()));
++				break;
++			case IPT_AD_STICK_Z:
++				entry.defseq(SEQ_TYPE_STANDARD).set(JOYCODE_Z_INDEXED(entry.player()));
++				break;
++
+ 			// leave everything else alone
+ 			default:
+ 				break;
+@@ -1176,6 +1461,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+ 	return _options;
+ }
+ 
++#pragma mark - generic option access
++
++- (BOOL)setValue:(NSString *)value forOptionNamed:(NSString *)name error:(NSError **)error
++{
++	std::string const optname(name.UTF8String);
++	NSString *failure = nil;
++
++	if (!_options->exists(optname))
++	{
++		failure = [NSString stringWithFormat:@"Unknown MAME option \"%@\".", name];
++	}
++	else
++	{
++		try
++		{
++			_options->set_value(optname, std::string_view(value.UTF8String), OPTION_PRIORITY_CMDLINE);
++		}
++		catch (options_exception &ex)
++		{
++			failure = [NSString stringWithFormat:@"MAME rejected %@ = \"%@\": %s", name, value, ex.message().c_str()];
++		}
++		catch (std::exception &ex)
++		{
++			failure = [NSString stringWithFormat:@"MAME rejected %@ = \"%@\": %s", name, value, ex.what()];
++		}
++	}
++
++	if (failure != nil)
++	{
++		os_log_error(OE_LOG, "%{public}@", failure);
++		if (error)
++		{
++			*error = [NSError errorWithDomain:MAMEErrorDomain code:MAMEErrorInvalidOption
++			                         userInfo:@{NSLocalizedDescriptionKey: failure}];
++		}
++		return NO;
++	}
++
++	return YES;
++}
++
++- (NSString *)valueForOptionNamed:(NSString *)name
++{
++	std::string const optname(name.UTF8String);
++	if (!_options->exists(optname))
++	{
++		return nil;
++	}
++	char const *value = _options->value(optname);
++	return value ? @(value) : @"";
++}
++
+ #pragma mark - core search path options
+ 
+ #define PATH_PROPERTY(OPT, SET, GET) \
+diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
+index a8ef9ff6..3181e294 100644
+--- a/src/osd/headless/public/headless.h
++++ b/src/osd/headless/public/headless.h
+@@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
+ 	MAMEErrorInvalidDriver = -3,
+ 	MAMEErrorMissingFiles = -4,
+ 	MAMEErrorFatal = -5,
++	MAMEErrorInvalidOption = -6,
++	MAMEErrorMediaLoadFailed = -7,
+ };
+ 
+ @class OSD, AuditResult, AuditRecord, Device;
+@@ -114,6 +116,17 @@ OE_EXPORTED_CLASS
+ /// Enable or disable a per-frame constant-write cheat.
+ - (void)setCheat:(uint32_t)index address:(uint32_t)address value:(uint32_t)value size:(uint8_t)size enabled:(BOOL)enabled;
+ 
++/// Sets a configuration setting of the machine (a PORT_CONFNAME field, as in
++/// MAME's Machine Configuration menu): the field with `mask` in the port
++/// `tag` (e.g. @":a2_config") takes `value`. Kept across machine restarts and
++/// re-applied over whatever the machine's cfg file restored; ignored by
++/// machines without that port.
++- (void)setConfigPort:(NSString *)tag mask:(uint32_t)mask value:(uint32_t)value;
++
++/// Stops applying a setting made with setConfigPort:mask:value: (from the
++/// next machine start; the running machine keeps its current value).
++- (void)removeConfigPort:(NSString *)tag mask:(uint32_t)mask;
++
+ #pragma mark - execution
+ 
+ - (BOOL)execute;
+@@ -121,6 +134,44 @@ OE_EXPORTED_CLASS
+ - (void)scheduleHardReset;
+ - (void)setBuffer:(void *)buffer size:(NSSize)size;
+ 
++#pragma mark - media (running machine)
++
++/*! Mounts the file at path in an image device of the running machine.
++ *
++ *  deviceName matches either the brief instance name ("flop1") or the full
++ *  instance name ("floppydisk1"). Must be called on the emulation thread,
++ *  between calls to -execute. Returns NO and sets error if no machine is
++ *  running, the device does not exist, or MAME fails to load the image. */
++- (BOOL)loadMediaAtPath:(NSString *)path forDevice:(NSString *)deviceName error:(NSError **)error;
++
++/*! Ejects whatever is mounted in the named image device, if anything. */
++- (void)unloadMediaForDevice:(NSString *)deviceName;
++
++/*! Path of the file mounted in the named image device, or nil if empty. */
++- (NSString *)mediaPathForDevice:(NSString *)deviceName;
++
++#pragma mark - MAME menu (running machine)
++
++/*! YES while one of MAME's menus is on screen. While it is, MAME ignores
++ *  the emulated machine's inputs and reads its UI keys (arrows, Enter, Esc,
++ *  Tab) instead. */
++@property (nonatomic, readonly) BOOL menuActive;
++
++/*! Opens MAME's main menu, as Tab does with UI keys enabled, whether or not
++ *  UI keys are enabled. Emulation thread only, between calls to -execute. */
++- (void)showMenu;
++
++/*! Closes any open MAME menu. Emulation thread only. */
++- (void)hideMenu;
++
++#pragma mark - screens (running machine)
++
++/*! On a machine with several screens (the C128's 40- and 80-column
++ *  outputs), shows only the screen with this device tag, e.g. "screen80".
++ *  Returns NO if there is no such screen or no view that shows it alone.
++ *  Emulation thread only. */
++- (BOOL)showScreenWithTag:(NSString *)tag;
++
+ @end
+ 
+ #pragma mark - Audit
+diff --git a/src/osd/headless/public/options.h b/src/osd/headless/public/options.h
+index 3f06d068..28ad7b13 100644
+--- a/src/osd/headless/public/options.h
++++ b/src/osd/headless/public/options.h
+@@ -40,6 +40,23 @@ DIRECTORY_PROPERTY(COMMENT, Comment, comment)
+  */
+ - (void)setBasePath:(NSString *)path;
+ 
++#pragma mark - generic option access
++
++/*! Sets any MAME option by name, at command-line priority.
++ *
++ *  Use this for options that have no dedicated property, such as slot options
++ *  ("gameio" = "joy") or media options ("flop1" = "/path/to/disk.woz").
++ *  Slot and media options only exist once a driver has been selected with
++ *  -[OSD setDriver:withAuditResult:error:], and a slot must be set before the
++ *  media options its card provides become available.
++ *
++ *  Returns NO and sets error (MAMEErrorInvalidOption) if the option does not
++ *  exist or MAME rejects the value. */
++- (BOOL)setValue:(NSString *)value forOptionNamed:(NSString *)name error:(NSError **)error;
++
++/*! Returns the current value of any MAME option, or nil if it does not exist. */
++- (NSString *)valueForOptionNamed:(NSString *)name;
++
+ #pragma mark - core performance options
+ 
+ BOOL_PROPERTY(AUTOFRAMESKIP, AutoFrameskip, autoFrameskip);
+diff --git a/src/osd/headless/public/osd.h b/src/osd/headless/public/osd.h
+index c3e45989..4c3c9780 100644
+--- a/src/osd/headless/public/osd.h
++++ b/src/osd/headless/public/osd.h
+@@ -1,4 +1,8 @@
+ 
++// The MAME release this headless OSD is built from, so a frontend built
++// against more than one can adapt (e.g. machine configuration bits that moved).
++#define OE_HEADLESS_MAME_VERSION 289
++
+ #import "options.h"
+ #import "inputenum.h"
+ #import "driver.h"

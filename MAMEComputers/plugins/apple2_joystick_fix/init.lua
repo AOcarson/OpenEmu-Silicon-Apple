@@ -12,7 +12,7 @@
 -- enables it by default and has a per-game "Joystick Timing Fix" switch in
 -- the Display Mode menu to turn it off for a game it upsets.
 --
--- Written for MAME 0.250's Lua API (emu.register_* callbacks).
+-- Works with MAME 0.250's and 0.289's Lua APIs (see on_frame/on_stop below).
 
 local exports = {
     name = "apple2_joystick_fix",
@@ -198,8 +198,27 @@ local function install_fix()
     emu.print_info("[apple2_joystick_fix] 255 -> 287 paddle timing enabled")
 end
 
+-- MAME 0.250 has emu.register_frame/register_stop; later versions replace
+-- them with notifiers whose subscriptions must be kept alive. Both last for
+-- the whole session.
+local subscriptions = {}
+local function on_frame(callback)
+    if emu.add_machine_frame_notifier then
+        table.insert(subscriptions, emu.add_machine_frame_notifier(callback))
+    else
+        emu.register_frame(callback)
+    end
+end
+local function on_stop(callback)
+    if emu.add_machine_stop_notifier then
+        table.insert(subscriptions, emu.add_machine_stop_notifier(callback))
+    else
+        emu.register_stop(callback)
+    end
+end
+
 function plugin.startplugin()
-    -- MAME 0.250's register_* callbacks last for the whole session, so they
+    -- The callbacks last for the whole session, so they
     -- are registered once here. prestart runs on every machine start and
     -- reset; the taps survive a reset.
     emu.register_prestart(function()
@@ -207,7 +226,7 @@ function plugin.startplugin()
     end)
 
     -- Installs on the first frame after the CPU has started.
-    emu.register_frame(function()
+    on_frame(function()
         if running and not installed then
             install_fix()
         end
@@ -215,7 +234,7 @@ function plugin.startplugin()
 
     -- Runs before the machine is torn down (including OpenEmu restarts), so
     -- the taps are removed while their address space still exists.
-    emu.register_stop(function()
+    on_stop(function()
         remove_fix()
         running = false
     end)

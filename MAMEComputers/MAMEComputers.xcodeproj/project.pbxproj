@@ -54,13 +54,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		050B7E8823775A04000ECB19 /* driver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = driver.h; path = deps/mame/src/osd/headless/public/driver.h; sourceTree = "<group>"; };
-		050B7E8923775A04000ECB19 /* oecommon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = oecommon.h; path = deps/mame/src/osd/headless/public/oecommon.h; sourceTree = "<group>"; };
-		050B7E8A23775A04000ECB19 /* options.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = options.h; path = deps/mame/src/osd/headless/public/options.h; sourceTree = "<group>"; };
-		050B7E8B23775A04000ECB19 /* headless.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = headless.h; path = deps/mame/src/osd/headless/public/headless.h; sourceTree = "<group>"; };
-		0510AA1B230081F3002028C1 /* inputenum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = inputenum.h; path = deps/mame/src/osd/headless/public/inputenum.h; sourceTree = "<group>"; };
-		0510AA1C230081F3002028C1 /* osd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osd.h; path = deps/mame/src/osd/headless/public/osd.h; sourceTree = "<group>"; };
-		0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = mamecomputers_headless.dylib; path = deps/mame/mamecomputers_headless.dylib; sourceTree = "<group>"; };
+		050B7E8823775A04000ECB19 /* driver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = driver.h; path = deps/mame-active/src/osd/headless/public/driver.h; sourceTree = "<group>"; };
+		050B7E8923775A04000ECB19 /* oecommon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = oecommon.h; path = deps/mame-active/src/osd/headless/public/oecommon.h; sourceTree = "<group>"; };
+		050B7E8A23775A04000ECB19 /* options.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = options.h; path = deps/mame-active/src/osd/headless/public/options.h; sourceTree = "<group>"; };
+		050B7E8B23775A04000ECB19 /* headless.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = headless.h; path = deps/mame-active/src/osd/headless/public/headless.h; sourceTree = "<group>"; };
+		0510AA1B230081F3002028C1 /* inputenum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = inputenum.h; path = deps/mame-active/src/osd/headless/public/inputenum.h; sourceTree = "<group>"; };
+		0510AA1C230081F3002028C1 /* osd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osd.h; path = deps/mame-active/src/osd/headless/public/osd.h; sourceTree = "<group>"; };
+		0510AA1D2300825D002028C1 /* mamecomputers_headless.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = mamecomputers_headless.dylib; path = deps/mame-active/mamecomputers_headless.dylib; sourceTree = "<group>"; };
 		05334A951C52AEEF0066D493 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
 		05334A981C52AF0E0066D493 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		8C3132F7177F667D0002D0B9 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
@@ -412,7 +412,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.4;
+				CURRENT_PROJECT_VERSION = 0.250.5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
@@ -423,14 +423,14 @@
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIgs\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 128\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Macintosh\"",
-					"$(SRCROOT)/deps/mame/src/osd/headless/public",
+					"$(SRCROOT)/deps/mame-active/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "\"$(USER_LIBRARY_DIR)/Application Support/OpenEmu/Cores\"";
 				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/deps/mame",
+					"$(PROJECT_DIR)/deps/mame-active",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -443,7 +443,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 0.250.4;
+				CURRENT_PROJECT_VERSION = 0.250.5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
@@ -454,7 +454,7 @@
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Apple IIgs\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Commodore 128\"",
 					"\"$(SRCROOT)/../OpenEmu/SystemPlugins/Macintosh\"",
-					"$(SRCROOT)/deps/mame/src/osd/headless/public",
+					"$(SRCROOT)/deps/mame-active/src/osd/headless/public",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "\"$(USER_LIBRARY_DIR)/Application Support/OpenEmu/Cores\"";
@@ -462,7 +462,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/deps/mame",
+					"$(PROJECT_DIR)/deps/mame-active",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";

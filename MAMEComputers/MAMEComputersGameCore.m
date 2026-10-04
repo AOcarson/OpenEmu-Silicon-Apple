@@ -89,16 +89,26 @@ static NSString *const MCModeStartupDisk  = @"mc.startupdisk";
 
 // The IIgs's "Apple II software speed" setting, which the core's MAME patch
 // adds to the IIgs's Machine Configuration: Normal keeps the machine at
-// 1 MHz except while a disk drive's motor is on, so the firmware can still
-// run 3.5" drives at full speed (as on a IIgs set to Normal).
+// 1 MHz except while the disk controller is in use, so the firmware can
+// still run 3.5" drives at full speed (as on a IIgs set to Normal).
 static NSString *const MCIIgsConfigPort   = @":a2_config";
-static const uint32_t  MCIIgsNormalSpeed  = 0x08;
 // The patch also gives the IIgs the apple2_joystick_fix plugin's 255 -> 287
-// paddle rule (the plugin's taps only fit the Apple //e family's memory map).
+// paddle rule (the plugin's taps only fit the Apple //e family's memory map),
+// and a Joystick Range: how far from centre a pushed stick reads, 100% down
+// to 50% in steps of 10 (some games misread full deflection; Rampage takes
+// down as up). MAME 0.289 uses bit 3 for the ROM 3's "Disable CDA Control
+// Panel" jumper, so its patch puts these settings one bit higher.
+#if defined(OE_HEADLESS_MAME_VERSION) && OE_HEADLESS_MAME_VERSION >= 289
+static const uint32_t  MCIIgsNormalSpeed  = 0x010;
+static const uint32_t  MCIIgsJoystickFix  = 0x020;
+static const uint32_t  MCIIgsJoystickRange = 0x1C0;
+static const uint32_t  MCIIgsJoystickRangeShift = 6;
+#else
+static const uint32_t  MCIIgsNormalSpeed  = 0x08;
 static const uint32_t  MCIIgsJoystickFix  = 0x10;
-// Bits 5-7: how far from centre a pushed stick reads, 100% down to 50% in
-// steps of 10 (some games misread full deflection; Rampage takes down as up).
 static const uint32_t  MCIIgsJoystickRange = 0xE0;
+static const uint32_t  MCIIgsJoystickRangeShift = 5;
+#endif
 
 enum { MCMaxPlayers = 2 };
 enum { MCExtraButtons = 6 };  // MAME joystick buttons 3-8
@@ -956,7 +966,7 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     BOOL fix = [self.requestedPlugins containsObject:MCPluginApple2JoystickFix];
     [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsNormalSpeed value:(normal ? MCIIgsNormalSpeed : 0)];
     [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickFix value:(fix ? MCIIgsJoystickFix : 0)];
-    [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickRange value:(rangeStep << 5)];
+    [_osd setConfigPort:MCIIgsConfigPort mask:MCIIgsJoystickRange value:(rangeStep << MCIIgsJoystickRangeShift)];
 }
 
 /*! The IIgs's Joystick Range, in percent: 100, 90, ... 50. */
