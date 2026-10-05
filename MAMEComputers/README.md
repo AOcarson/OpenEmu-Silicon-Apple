@@ -38,7 +38,7 @@ has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
 with `deps/mame-active` pointing at the one in use), so switching only
 rebuilds the core, not MAME. The first 0.289 build downloads that release
 (a few hundred MB) and compiles it from scratch. The installed core's version
-says which MAME it has: `0.250.6` or `0.289.6`.
+says which MAME it has: `0.250.7` or `0.289.7`.
 
 What to expect:
 
@@ -132,7 +132,9 @@ Copy these zips, unchanged, from a MAME 0.250-compatible set (0.289 for a
 |---|---|
 | `macplus.zip` | Macintosh Plus ROM (the default machine; the Macintosh 512Ke uses it too). |
 | `mackbd_m0110a.zip` | The Mac Plus keyboard's own controller chip. |
-| `mac128k.zip` | Only for the "Macintosh 128K" machine. |
+| `mac128k.zip` | For the "Macintosh 128K" machine. |
+| `mac512k.zip` | For the "Macintosh 512K" machine (its own ROM revision). |
+| `mackbd_m0110.zip` | The original Mac keyboard and keypad, used by the 128K, 512K and 512Ke (some sets also have `mackbd_m0120.zip` for the keypad). |
 
 **Commodore 64**
 
@@ -363,6 +365,37 @@ Command is Command and Option is Option. The Mac Plus keyboard has no Control
 or Esc key (in Mac software Command-. usually stands in for Esc); its keypad
 has Clear (the Mac's Clear key or Num Lock) and =. A gamepad button (or a
 key) can be bound to **Mouse Button** in OpenEmu's Controls.
+
+### Which Mac a game runs on
+
+Early Mac software often only works on the Macs of its time: Frogger 1.0
+draws its playing field straight into the screen memory of a 128K/512K Mac,
+so on a Plus only its title screen shows. The core looks each Mac disk up
+in MAME's software lists (`mac_flop_orig`, `mac_flop_clcracked`,
+`mac_flop`), which record for several hundred disks which Macs the software
+runs on, and starts the game on a compatible one. The table is
+`MAMEComputers/MCMacSoftwareList.h`, made from MAME's lists by
+`Scripts/generate-mac-software-table.py`; a disk is recognised by its SHA-1,
+so only unmodified dumps (such as 4am's moof-a-day `.moof` files) match. The
+match is remembered in the game's settings, so it still applies after the
+game has saved to its disk.
+
+Machines are tried in this order, and the first whose ROMs are all present
+runs:
+
+1. The game's **Machine** setting, if you chose one.
+2. The Macs the software list names, in the Machine menu's order (Plus,
+   512K, 128K, 512Ke).
+3. The Macintosh Plus.
+
+So a missing ROM set no longer locks a game out: it starts on the next
+machine, and the log says which ROMs the skipped one needed. Choosing a
+machine in the menu whose ROMs are missing keeps the one that was running.
+
+Each Mac has its own keyboard: the Plus keyboard on the Plus, the original
+keyboard with numeric keypad on the 128K, 512K and 512Ke (as on archive.org).
+The original keyboard has no arrow keys; the Mac's arrow keys press the
+keypad keys that carry the arrows (/ , + *).
 
 **Mouse** (Display Mode menu, per game):
 

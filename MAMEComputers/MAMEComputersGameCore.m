@@ -25,7 +25,11 @@
  */
 
 #import "MAMEComputersGameCore.h"
+#import "MCMacSoftwareList.h"
 
+#import <CommonCrypto/CommonDigest.h>
+#include <stdio.h>
+#include <stdlib.h>
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenGL/gl.h>
 #import <os/log.h>
@@ -63,6 +67,7 @@ static NSString *const MCSettingIIgsSpeed        = @"IIgsSpeed";                
 static NSString *const MCSettingJoystickRange    = @"JoystickRange";             // IIgs machine: percent, 50-100, default 100
 static NSString *const MCSettingStartupDisk      = @"StartupDisk";               // Mac: "auto", "always" or "never", default "auto"
 static NSString *const MCSettingMacMouse         = @"MacMouse";                  // Mac: "pointer" (follows the host pointer) or "relative", default "pointer"
+static NSString *const MCSettingCatalogue        = @"MAMESoftwareList";          // Mac: { software, description, machines: [driver] } found by -lookUpMacCatalogue
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
 static NSString *const MCSettingDisabledPlugins  = @"DisabledMAMEPlugins";       // [ plugin folder name ], removed
@@ -450,6 +455,60 @@ static const MCKeyMapping MacKeyMap[] =
     KEY(0xE7, LCONTROL, "Command"),
 };
 
+// Macintosh 128K, 512K and 512Ke: MAME's M0110 keyboard with an M0120
+// numeric keypad (the Plus keyboard's arrow keys and keypad came later).
+// The M0110 has no arrow keys; the keypad's / , + and * keys carry the
+// arrows, and MAME names them by position, so the Mac's arrow keys and
+// keypad are mapped onto those. Command is MAME's left Control, Option
+// either Alt, as on the Plus.
+static const MCKeyMapping Mac128KeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x2A, BACKSPACE,  "Backspace"),
+    KEY(0x2B, TAB,        "Tab"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "-"),
+    KEY(0x2E, EQUALS,     "="),
+    KEY(0x2F, OPENBRACE,  "["),
+    KEY(0x30, CLOSEBRACE, "]"),
+    KEY(0x31, BACKSLASH,  "\\"),
+    KEY(0x33, COLON,      ";"),
+    KEY(0x34, QUOTE,      "'"),
+    KEY(0x35, TILDE,      "`"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    KEY(0x39, CAPSLOCK,   "Caps Lock"),
+
+    MC_UI_TOGGLE,
+
+    KEY(0x52, MINUS_PAD,  "Keypad / (Up)"),
+    KEY(0x51, PLUS_PAD,   "Keypad , (Down)"),
+    KEY(0x50, SLASH_PAD,  "Keypad + (Left)"),
+    KEY(0x4F, ASTERISK,   "Keypad * (Right)"),
+
+    KEY(0x53, NUMLOCK,    "Keypad Clear"),
+    KEY(0x54, MINUS_PAD,  "Keypad / (Up)"),
+    KEY(0x55, ASTERISK,   "Keypad * (Right)"),
+    KEY(0x56, EQUALS_PAD, "Keypad -"),
+    KEY(0x57, SLASH_PAD,  "Keypad + (Left)"),
+    KEY(0x67, PLUS_PAD,   "Keypad , (Down)"),
+    KEY(0x58, ENTER_PAD,  "Keypad Enter"),
+    KEY(0x59, 1_PAD, "Keypad 1"), KEY(0x5A, 2_PAD, "Keypad 2"), KEY(0x5B, 3_PAD, "Keypad 3"),
+    KEY(0x5C, 4_PAD, "Keypad 4"), KEY(0x5D, 5_PAD, "Keypad 5"), KEY(0x5E, 6_PAD, "Keypad 6"),
+    KEY(0x5F, 7_PAD, "Keypad 7"), KEY(0x60, 8_PAD, "Keypad 8"), KEY(0x61, 9_PAD, "Keypad 9"),
+    KEY(0x62, 0_PAD, "Keypad 0"), KEY(0x63, DEL_PAD, "Keypad ."),
+
+    KEY(0xE1, LSHIFT,   "Shift"),
+    KEY(0xE2, LALT,     "Option"),
+    KEY(0xE3, LCONTROL, "Command"),
+    KEY(0xE5, RSHIFT,   "Shift"),
+    KEY(0xE6, RALT,     "Option"),
+    KEY(0xE7, LCONTROL, "Command"),
+};
+
 // While one of MAME's menus is open the keyboard types PC keys, so the menu
 // works the same on every machine: arrows move, Return selects, Esc goes
 // back, Tab closes, Delete clears an input assignment.
@@ -601,6 +660,7 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
     BOOL       _launchedFromDisk;
     BOOL       _eightBitDisk, _eightBitDiskChecked;  // see iigsRunsAtNormalSpeed
     NSString  *_macStartupDisk;  // this game's copy of the startup disk in drive 1, or nil
+    NSString  *_activeMachine;   // the driver actually running (see -startMachineWithError:)
     MCDiskSet *_disks;
     NSString  *_drive1Path;    // may be a file inserted from outside the set
     NSInteger  _drive2Index;
@@ -651,6 +711,9 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
 - (BOOL)isC128      { return _system == MCSystemC128; }
 - (BOOL)isApple2GS  { return _system == MCSystemApple2GS; }
 - (BOOL)isMac       { return _system == MCSystemMac; }
+/*! The Mac Plus has the M0110A keyboard; the earlier Macs the M0110 with an
+ *  M0120 keypad. */
+- (BOOL)macHasPlusKeyboard { return self.isMac && [self.machine isEqualToString:@"macplus"]; }
 /*! Machines driven with the Mac's pointer: the IIgs and the Macintosh. */
 - (BOOL)hasMouse    { return self.isApple2GS || self.isMac; }
 /*! The Apple II family (IIe and IIgs systems), which has the game port. */
@@ -700,7 +763,10 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
         case MCSystemApple2GS: MC_MAP(Apple2GSKeyMap);
         case MCSystemC64:      MC_MAP(C64KeyMap);
         case MCSystemC128:     MC_MAP(C128KeyMap);
-        case MCSystemMac:      MC_MAP(MacKeyMap);
+        case MCSystemMac:
+            if (self.macHasPlusKeyboard)
+                MC_MAP(MacKeyMap);
+            MC_MAP(Mac128KeyMap);
         default:               MC_MAP(Apple2KeyMap);
     }
 #undef MC_MAP
@@ -993,10 +1059,112 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     return ([value isKindOfClass:[NSNumber class]] && [value integerValue] == 1) ? 1 : 2;
 }
 
+/*! The driver running, or (before a machine has started) the one that will
+ *  be tried first. */
 - (NSString *)machine
 {
+    return _activeMachine ?: self.machineCandidates.firstObject;
+}
+
+/*! The game's Machine setting, if the player chose one. */
+- (NSString *)chosenMachine
+{
     id value = _settings[MCSettingMachine];
-    return ([value isKindOfClass:[NSString class]] && [value length] > 0) ? value : self.defaultMachine;
+    return ([value isKindOfClass:[NSString class]] && [value length] > 0) ? value : nil;
+}
+
+/*! Machines to try, in order: the player's choice, then (Mac) the models
+ *  MAME's software list says the game runs on, then the system's default.
+ *  The first whose ROMs are present runs, so a choice whose ROM set is
+ *  missing can't lock the game out (its Display Mode menu is only
+ *  reachable once something runs). */
+- (NSArray<NSString *> *)machineCandidates
+{
+    NSMutableOrderedSet<NSString *> *candidates = [NSMutableOrderedSet orderedSet];
+    if (self.chosenMachine)
+        [candidates addObject:self.chosenMachine];
+    [candidates addObjectsFromArray:self.catalogueMachines];
+    [candidates addObject:self.defaultMachine];
+    return candidates.array;
+}
+
+/*! Mac: the machines MAME's software list says this game runs on, in the
+ *  order of the Machine menu (see -lookUpMacCatalogue). */
+- (NSArray<NSString *> *)catalogueMachines
+{
+    if (!self.isMac)
+        return @[];
+    NSDictionary *found = _settings[MCSettingCatalogue];
+    NSArray *machines = [found isKindOfClass:[NSDictionary class]] ? found[@"machines"] : nil;
+    if (![machines isKindOfClass:[NSArray class]])
+        return @[];
+
+    NSMutableArray<NSString *> *ordered = [NSMutableArray array];
+    for (NSValue *value in MCMachinesFor(_system))
+    {
+        NSString *driver = ((const MCMachine *)value.pointerValue)->driver;
+        if ([machines containsObject:driver])
+            [ordered addObject:driver];
+    }
+    return ordered;
+}
+
+static int MCCompareSoftwareEntry(const void *key, const void *entry)
+{
+    return strcmp((const char *)key, ((const MCMacSoftwareEntry *)entry)->sha1);
+}
+
+/*! Mac: looks the launched disk up in MAME's software lists by SHA-1 and,
+ *  when found, remembers in the game's settings which Macs it runs on. The
+ *  record stays when the disk later changes (MAME writes a game's saves
+ *  back to its disk), and is updated when another known disk is launched. */
+- (void)lookUpMacCatalogue
+{
+    if (!self.isMac || !_launchedFromDisk)
+        return;
+
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:_launchPath error:nil];
+    if (attributes.fileSize == 0 || attributes.fileSize > 8 * 1024 * 1024)
+        return;
+    NSData *data = [NSData dataWithContentsOfFile:_launchPath options:NSDataReadingMappedIfSafe error:nil];
+    if (data == nil)
+        return;
+
+    // SHA-1 is what MAME's lists record; it identifies a file here, nothing
+    // cryptographic (hence the deprecation is silenced).
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    CC_SHA1(data.bytes, (CC_LONG)data.length, digest);
+#pragma clang diagnostic pop
+    char hex[CC_SHA1_DIGEST_LENGTH * 2 + 1];
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++)
+        snprintf(hex + i * 2, 3, "%02x", digest[i]);
+
+    const MCMacSoftwareEntry *entry = (const MCMacSoftwareEntry *)bsearch(hex, MCMacSoftwareList,
+                                              sizeof(MCMacSoftwareList) / sizeof(MCMacSoftwareList[0]),
+                                              sizeof(MCMacSoftwareList[0]), MCCompareSoftwareEntry);
+    if (entry == NULL)
+    {
+        os_log_info(OE_CORE_LOG, "disk not in MAME's Mac software lists (SHA-1 %{public}s)", hex);
+        return;
+    }
+
+    NSMutableArray<NSString *> *machines = [NSMutableArray array];
+    if (entry->machines & MCMacMachinePlus)  [machines addObject:@"macplus"];
+    if (entry->machines & MCMacMachine512KE) [machines addObject:@"mac512ke"];
+    if (entry->machines & MCMacMachine512K)  [machines addObject:@"mac512k"];
+    if (entry->machines & MCMacMachine128K)  [machines addObject:@"mac128k"];
+    os_log_info(OE_CORE_LOG, "MAME's software list knows this disk: %{public}s (%{public}s), runs on %{public}@",
+                entry->description, entry->software, [machines componentsJoinedByString:@", "]);
+
+    NSDictionary *record = @{
+        @"software": @(entry->software),
+        @"description": @(entry->description),
+        @"machines": machines,
+    };
+    if (![_settings[MCSettingCatalogue] isEqual:record])
+        [self setSetting:record forKey:MCSettingCatalogue];
 }
 
 - (void)loadSettingsNamed:(NSString *)settingsName
@@ -1184,6 +1352,7 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     _drive2Index = MCDriveEmpty;
 
     [self loadSettingsNamed:_disks.settingsName];
+    [self lookUpMacCatalogue];
 
     if (self.isMac)
     {
@@ -1239,32 +1408,47 @@ static BOOL MCMacDiskIsBootable(NSString *path)
         os_log_info(OE_CORE_LOG, "the game's disk has no boot blocks; put a System disk in %{public}@",
                     self.macStartupDiskFolder);
 
-    NSString *machine = self.machine;
-    AuditResult *audit = nil;
-    NSError *driverError = nil;
-    if (![_osd setDriver:machine withAuditResult:&audit error:&driverError])
+    // The first candidate whose ROMs are all present runs. If none can,
+    // the error names what the first one (the player's choice, or the
+    // game's best fit) is missing.
+    _activeMachine = nil;
+    NSError *firstError = nil;
+    for (NSString *candidate in self.machineCandidates)
     {
-        os_log_error(OE_CORE_LOG, "MAME has no machine \"%{public}@\": %{public}@", machine, driverError);
-        if (error)
+        AuditResult *audit = nil;
+        NSError *driverError = nil;
+        NSError *candidateError = nil;
+        if (![_osd setDriver:candidate withAuditResult:&audit error:&driverError])
         {
-            *error = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
+            os_log_error(OE_CORE_LOG, "MAME has no machine \"%{public}@\": %{public}@", candidate, driverError);
+            candidateError = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
                 NSLocalizedDescriptionKey: @"Unknown machine.",
                 NSLocalizedRecoverySuggestionErrorKey: [NSString stringWithFormat:
                     @"\"%@\" is not a machine this core can emulate. Check the \"%@\" entry in:\n\n%@",
-                    machine, MCSettingMachine, _settingsPath],
+                    candidate, MCSettingMachine, _settingsPath],
             }];
         }
-        return NO;
+        else if (audit.summary == AuditSummaryIncorrect || audit.summary == AuditSummaryNotFound)
+        {
+            candidateError = [self errorForAudit:audit];
+            os_log_info(OE_CORE_LOG, "can't start %{public}@: %{public}@", candidate,
+                        candidateError.localizedRecoverySuggestion ?: @"ROMs missing");
+        }
+        else
+        {
+            _activeMachine = candidate;
+            break;
+        }
+        if (firstError == nil)
+            firstError = candidateError;
     }
-
-    if (audit.summary == AuditSummaryIncorrect || audit.summary == AuditSummaryNotFound)
+    if (_activeMachine == nil)
     {
         if (error)
-        {
-            *error = [self errorForAudit:audit];
-        }
+            *error = firstError;
         return NO;
     }
+    os_log_info(OE_CORE_LOG, "machine %{public}@", _activeMachine);
 
     NSMutableArray<NSString *> *rejected = [NSMutableArray array];
     NSError *optionError = nil;
@@ -1302,10 +1486,11 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     }
     else if (self.isMac)
     {
-        // The Mac Plus keyboard (with arrow keys and keypad) on every Mac
-        // model, so MacKeyMap fits them all; the 128K and 512Ke otherwise
-        // get the original keyboard and keypad.
-        MC_SET(@"usp", @"kbd");
+        // Each Mac with its own keyboard, as MAME (and archive.org) set them
+        // up: the Plus keyboard on the Plus, the original keyboard with its
+        // numeric keypad on the 128K, 512K and 512Ke, whose software of the
+        // time expects it. See -machineKeyMap:.
+        MC_SET(self.macHasPlusKeyboard ? @"usp" : @"pad", @"kbd");
     }
 
     NSDictionary *custom = _settings[MCSettingMAMEOptions];
@@ -1360,7 +1545,7 @@ static BOOL MCMacDiskIsBootable(NSString *path)
 
     if (![_osd initializeWithError:error])
     {
-        os_log_error(OE_CORE_LOG, "MAME failed to start %{public}@", machine);
+        os_log_error(OE_CORE_LOG, "MAME failed to start %{public}@", _activeMachine);
         return NO;
     }
 
@@ -1684,10 +1869,14 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         { @"c128p", @"Commodore 128 (PAL)" },
         { @"c128",  @"Commodore 128 (NTSC)" },
     };
+    // Also the order -machineCandidates tries compatible models in: the
+    // Plus first, then the original 400K-drive Macs most early software was
+    // made on, then the 512Ke.
     static MCMachine mac[] = {
         { @"macplus",  @"Macintosh Plus" },
-        { @"mac512ke", @"Macintosh 512Ke" },
+        { @"mac512k",  @"Macintosh 512K (400K disks only)" },
         { @"mac128k",  @"Macintosh 128K (400K disks only)" },
+        { @"mac512ke", @"Macintosh 512Ke" },
     };
 
     MCMachine *list = apple2;
@@ -1915,10 +2104,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         {
             // If the other model can't start (usually its ROM set is
             // missing), fall back to the one that was running.
-            NSString *previous = self.machine;
+            NSString *previous = self.chosenMachine;
             [self setSetting:value forKey:MCSettingMachine];
-            if (![self restartMachine])
+            BOOL started = [self restartMachine];
+            if (!started || ![_activeMachine isEqualToString:value])
             {
+                os_log_error(OE_CORE_LOG, "%{public}@ can't start (missing ROMs?); keeping the previous machine", value);
                 [self setSetting:previous forKey:MCSettingMachine];
                 [self restartMachine];
             }
