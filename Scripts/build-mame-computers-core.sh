@@ -8,8 +8,8 @@
 # Commodore 64, Commodore 128 and Macintosh systems.
 #
 # Usage:
-#   ./Scripts/build-mame-computers-core.sh                # MAME 0.250 (default)
-#   ./Scripts/build-mame-computers-core.sh --mame 0.289   # MAME 0.289
+#   ./Scripts/build-mame-computers-core.sh                # MAME 0.289 (default)
+#   ./Scripts/build-mame-computers-core.sh --mame 0.250   # MAME 0.250 (OpenEmu's fork, as the Arcade core)
 #   ./Scripts/install-core.sh MAMEComputers --release     # then install it
 #
 # The first build of each MAME version compiles a few hundred MAME source
@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-MAME_VERSION="${MAME_COMPUTERS_VERSION:-0.250}"
+MAME_VERSION="${MAME_COMPUTERS_VERSION:-0.289}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --mame) MAME_VERSION="${2:?--mame needs a version (0.250 or 0.289)}"; shift 2 ;;

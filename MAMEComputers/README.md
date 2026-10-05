@@ -1,10 +1,10 @@
 # Home computers core: Apple IIe, Apple IIgs, Commodore 64 and 128, Macintosh (MAME 0.250 or 0.289)
 
 `MAMEComputers.oecoreplugin` runs Apple //e, Apple IIgs, Commodore 64,
-Commodore 128 and early Macintosh software in OpenEmu using the same headless
-MAME 0.250 library as the Arcade core, built with only those drivers (or,
-optionally, MAME 0.289; see below). One
-core serves five systems, each with its own sidebar entry:
+Commodore 128 and early Macintosh software in OpenEmu using a headless MAME
+0.289 library built with only those drivers (or, optionally, the same MAME
+0.250 as the Arcade core; see below). One core serves five systems, each with
+its own sidebar entry:
 
 - **Apple IIe**, **Apple IIgs**, **Commodore 128** and **Macintosh** — system
   plugins in `OpenEmu/SystemPlugins/` added by this fork.
@@ -19,38 +19,38 @@ with `MAMEApple2` don't load in this core.
 ## Build and install
 
 ```sh
-./Scripts/build-mame-computers-core.sh           # MAME dylib + core plugin
+./Scripts/build-mame-computers-core.sh           # MAME 0.289 dylib + core plugin
 ./Scripts/install-core.sh MAMEComputers --release
 ./Scripts/verify-core-installed.sh MAMEComputers --release
 ```
 
-### MAME 0.289 (experimental)
+### MAME version
 
-The core can also be built on MAME 0.289 instead of 0.250:
+The core is built on MAME 0.289 by default (since 0.289.9). It can still be
+built on MAME 0.250, the OpenEmu fork the Arcade core uses:
 
 ```sh
-./Scripts/build-mame-computers-core.sh --mame 0.289
+./Scripts/build-mame-computers-core.sh --mame 0.250
 ./Scripts/install-core.sh MAMEComputers --release
 ```
 
-Leave off `--mame 0.289` (or pass `--mame 0.250`) to go back. Each version
-has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
-with `deps/mame-active` pointing at the one in use), so switching only
-rebuilds the core, not MAME. The first 0.289 build downloads that release
-(a few hundred MB) and compiles it from scratch. The installed core's version
-says which MAME it has: `0.250.9` or `0.289.9`.
+(`MAME_COMPUTERS_VERSION=0.250` in the environment does the same.) Leave off
+`--mame` to go back to 0.289. Each version has its own MAME checkout
+(`deps/mame` for 0.250, `deps/mame-0289` for 0.289, with `deps/mame-active`
+pointing at the one in use), so switching only rebuilds the core, not MAME.
+The first build of a version downloads it and compiles it from scratch. The
+installed core's version says which MAME it has: `0.289.9` or `0.250.9`.
 
-What to expect:
+Differences between the two:
 
 - **Not faster.** Newer MAME is usually a little slower, because it emulates
   more precisely. 0.289 is about accuracy (39 releases' worth of driver
-  fixes) and is the base for the later Macs on the roadmap.
+  fixes; the LC II's sound is imperfect in 0.250) and is the base for the
+  later Macs on the roadmap.
 - **ROMs**: a few system ROM sets changed (see the table below). MAME's log
   names any file it can't find.
 - **Saves**: save states don't carry over between the two versions. Disk
   images, MAME's per-game settings and nvram do.
-- The 0.289 port (`patches/0289`) has only been compiled piecemeal so far,
-  not as a whole on a Mac, so the first build may still need fixes.
 
 The app itself must also be built from this checkout, since the Apple IIe
 system plugin ships inside OpenEmu.app:

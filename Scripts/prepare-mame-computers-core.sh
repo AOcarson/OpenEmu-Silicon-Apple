@@ -2,8 +2,8 @@
 # Prepare the MAME headless source used by MAMEComputers/MAMEComputers.xcodeproj.
 #
 # Usage:
-#   ./Scripts/prepare-mame-computers-core.sh                # MAME 0.250 (default)
-#   ./Scripts/prepare-mame-computers-core.sh --mame 0.289   # MAME 0.289
+#   ./Scripts/prepare-mame-computers-core.sh                # MAME 0.289 (default)
+#   ./Scripts/prepare-mame-computers-core.sh --mame 0.250   # MAME 0.250 (OpenEmu's fork, as the Arcade core)
 #
 # MAME 0.250: the same pinned OpenEmu-Silicon/mame revision as the Arcade core,
 # checked out separately in MAMEComputers/deps/mame so the two builds
@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-MAME_VERSION="${MAME_COMPUTERS_VERSION:-0.250}"
+MAME_VERSION="${MAME_COMPUTERS_VERSION:-0.289}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --mame) MAME_VERSION="${2:?--mame needs a version (0.250 or 0.289)}"; shift 2 ;;
