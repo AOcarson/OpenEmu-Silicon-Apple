@@ -67,6 +67,7 @@ static NSString *const MCSettingIIgsSpeed        = @"IIgsSpeed";                
 static NSString *const MCSettingJoystickRange    = @"JoystickRange";             // IIgs machine: percent, 50-100, default 100
 static NSString *const MCSettingStartupDisk      = @"StartupDisk";               // Mac: "auto", "always" or "never", default "auto"
 static NSString *const MCSettingMacMouse         = @"MacMouse";                  // Mac: "pointer" (follows the host pointer) or "relative", default "pointer"
+static NSString *const MCSettingMacCD            = @"MacCD";                     // Mac: path of the CD image in the CD-ROM drive, kept across restarts
 static NSString *const MCSettingCatalogue        = @"MAMESoftwareList";          // Mac: { software, description, machines: [driver] } found by -lookUpMacCatalogue
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
@@ -93,6 +94,7 @@ static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
 static NSString *const MCModeJoystickRange = @"mc.joystickrange";
 static NSString *const MCModeStartupDisk  = @"mc.startupdisk";
 static NSString *const MCModeMacMouse     = @"mc.macmouse";
+static NSString *const MCModeMacEjectCD   = @"mc.macejectcd";
 
 // The IIgs's "Apple II software speed" setting, which the core's MAME patch
 // adds to the IIgs's Machine Configuration: Normal keeps the machine at
@@ -509,6 +511,78 @@ static const MCKeyMapping Mac128KeyMap[] =
     KEY(0xE7, LCONTROL, "Command"),
 };
 
+// Macintosh LC II: MAME's Apple Desktop Bus keyboard (an Apple Extended
+// Keyboard: Control, Esc, arrows, F-keys, keypad). MAME 0.250 put Command on
+// the PC's right Alt and Option on left Alt; 0.289 swapped them.
+static const MCKeyMapping MacADBKeyMap[] =
+{
+    MC_LETTERS_AND_DIGITS,
+
+    KEY(0x28, ENTER,      "Return"),
+    KEY(0x29, ESC,        "Esc"),
+    KEY(0x2A, BACKSPACE,  "Delete"),
+    KEY(0x2B, TAB,        "Tab"),
+    KEY(0x2C, SPACE,      "Space"),
+    KEY(0x2D, MINUS,      "-"),
+    KEY(0x2E, EQUALS,     "="),
+    KEY(0x2F, OPENBRACE,  "["),
+    KEY(0x30, CLOSEBRACE, "]"),
+    KEY(0x31, BACKSLASH,  "\\"),
+    KEY(0x33, COLON,      ";"),
+    KEY(0x34, QUOTE,      "'"),
+    KEY(0x35, TILDE,      "`"),
+    KEY(0x36, COMMA,      ","),
+    KEY(0x37, STOP,       "."),
+    KEY(0x38, SLASH,      "/"),
+    KEY(0x39, CAPSLOCK,   "Caps Lock"),
+
+    KEY(0x3A, F1, "F1"), KEY(0x3B, F2, "F2"), KEY(0x3C, F3, "F3"), KEY(0x3D, F4, "F4"),
+    KEY(0x3E, F5, "F5"), KEY(0x3F, F6, "F6"), KEY(0x40, F7, "F7"), KEY(0x41, F8, "F8"),
+    // F9 is left out: it is OpenEmu's default key for the MAME menu control.
+    KEY(0x43, F10, "F10"), KEY(0x44, F11, "F11"), KEY(0x45, F12, "F12"),
+    KEY(0x68, F13, "F13"), KEY(0x69, F14, "F14"), KEY(0x6A, F15, "F15"),
+
+    MC_UI_TOGGLE,
+
+    KEY(0x49, INSERT, "Help"),
+    KEY(0x4A, HOME,   "Home"),
+    KEY(0x4B, PGUP,   "Page Up"),
+    KEY(0x4D, END,    "End"),
+    KEY(0x4E, PGDN,   "Page Down"),
+    KEY(0x4F, RIGHT,  "Right"),
+    KEY(0x50, LEFT,   "Left"),
+    KEY(0x51, DOWN,   "Down"),
+    KEY(0x52, UP,     "Up"),
+
+    KEY(0x53, NUMLOCK,    "Keypad Clear"),
+    KEY(0x54, SLASH_PAD,  "Keypad /"),
+    KEY(0x55, ASTERISK,   "Keypad *"),
+    KEY(0x56, MINUS_PAD,  "Keypad -"),
+    KEY(0x57, PLUS_PAD,   "Keypad +"),
+    KEY(0x58, ENTER_PAD,  "Keypad Enter"),
+    KEY(0x59, 1_PAD, "Keypad 1"), KEY(0x5A, 2_PAD, "Keypad 2"), KEY(0x5B, 3_PAD, "Keypad 3"),
+    KEY(0x5C, 4_PAD, "Keypad 4"), KEY(0x5D, 5_PAD, "Keypad 5"), KEY(0x5E, 6_PAD, "Keypad 6"),
+    KEY(0x5F, 7_PAD, "Keypad 7"), KEY(0x60, 8_PAD, "Keypad 8"), KEY(0x61, 9_PAD, "Keypad 9"),
+    KEY(0x62, 0_PAD, "Keypad 0"), KEY(0x63, DEL_PAD, "Keypad ."),
+    KEY(0x67, EQUALS_PAD, "Keypad ="),
+
+    KEY(0xE0, LCONTROL, "Control"),
+    KEY(0xE1, LSHIFT,   "Shift"),
+    KEY(0xE4, LCONTROL, "Control"),
+    KEY(0xE5, RSHIFT,   "Shift"),
+#if defined(OE_HEADLESS_MAME_VERSION) && OE_HEADLESS_MAME_VERSION >= 289
+    KEY(0xE2, RALT, "Option"),
+    KEY(0xE3, LALT, "Command"),
+    KEY(0xE6, RALT, "Option"),
+    KEY(0xE7, LALT, "Command"),
+#else
+    KEY(0xE2, LALT, "Option"),
+    KEY(0xE3, RALT, "Command"),
+    KEY(0xE6, LALT, "Option"),
+    KEY(0xE7, RALT, "Command"),
+#endif
+};
+
 // While one of MAME's menus is open the keyboard types PC keys, so the menu
 // works the same on every machine: arrows move, Return selects, Esc goes
 // back, Tab closes, Delete clears an input assignment.
@@ -714,6 +788,17 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
 /*! The Mac Plus has the M0110A keyboard; the earlier Macs the M0110 with an
  *  M0120 keypad. */
 - (BOOL)macHasPlusKeyboard { return self.isMac && [self.machine isEqualToString:@"macplus"]; }
+/*! Mac: the CD image in the CD-ROM drive, if it still exists. */
+- (NSString *)macCDPath
+{
+    id path = self.isMac ? _settings[MCSettingMacCD] : nil;
+    if ([path isKindOfClass:[NSString class]] && [[NSFileManager defaultManager] fileExistsAtPath:path])
+        return path;
+    return nil;
+}
+
+/*! The LC II has an Apple Desktop Bus keyboard and mouse. */
+- (BOOL)macHasADB { return self.isMac && [self.machine isEqualToString:@"maclc2"]; }
 /*! Machines driven with the Mac's pointer: the IIgs and the Macintosh. */
 - (BOOL)hasMouse    { return self.isApple2GS || self.isMac; }
 /*! The Apple II family (IIe and IIgs systems), which has the game port. */
@@ -764,6 +849,8 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
         case MCSystemC64:      MC_MAP(C64KeyMap);
         case MCSystemC128:     MC_MAP(C128KeyMap);
         case MCSystemMac:
+            if (self.macHasADB)
+                MC_MAP(MacADBKeyMap);
             if (self.macHasPlusKeyboard)
                 MC_MAP(MacKeyMap);
             MC_MAP(Mac128KeyMap);
@@ -818,7 +905,91 @@ static BOOL MCIsFiveInchAppleDisk(NSString *path)
 static NSSet<NSString *> *MCMacDiskExtensions(void)
 {
     // Keep in sync with OEFileSuffixes in the Macintosh system plugin.
-    return [NSSet setWithObjects:@"dsk", @"img", @"image", @"dc", @"dc42", @"diskcopy", @"moof", nil];
+    return [NSSet setWithObjects:@"dsk", @"img", @"image", @"dc", @"dc42", @"diskcopy", @"moof",
+            @"hda", @"hd", @"chd", @"iso", @"cdr", @"toast", nil];
+}
+
+typedef NS_ENUM(NSInteger, MCMacMedia)
+{
+    MCMacMediaFloppy,       // 400K/800K (any Mac with an 800K drive)
+    MCMacMediaFloppyHD,     // 1.4 MB: needs a SuperDrive (the LC II)
+    MCMacMediaDrive,        // a whole SCSI hard drive (partition map and driver)
+    MCMacMediaBlankDrive,   // an empty file to initialise as a hard drive
+    MCMacMediaVolume,       // a bare HFS volume (Basilisk II / Mini vMac): can't boot here
+    MCMacMediaCD,           // a CD-ROM image
+};
+
+static const unsigned long long MCMacFloppyHDSize = 1474560;
+
+/*! What kind of Mac medium a file is, from its extension and first blocks. */
+static MCMacMedia MCMacMediaKind(NSString *path)
+{
+    NSString *ext = path.pathExtension.lowercaseString;
+    if ([@[ @"iso", @"cdr", @"toast" ] containsObject:ext])
+        return MCMacMediaCD;
+    if ([ext isEqualToString:@"moof"])
+        return MCMacMediaFloppy;
+
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    if (fh == nil)
+        return MCMacMediaFloppy;  // let MAME report the problem
+    NSData *head = [fh readDataOfLength:1024 + 84 + 2];
+    [fh closeFile];
+    unsigned long long size = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil].fileSize;
+    const uint8_t *b = (const uint8_t *)head.bytes;
+
+    if ([ext isEqualToString:@"chd"])
+    {
+        // MAME's CHD: the first metadata entry's tag says what it holds
+        // (GDDD a hard disk; CHT2/CHCD/CHGD a CD).
+        if (head.length >= 0x38 && memcmp(b, "MComprHD", 8) == 0)
+        {
+            uint64_t metaOffset = 0;
+            for (int i = 0; i < 8; i++)
+                metaOffset = (metaOffset << 8) | b[0x30 + i];
+            NSFileHandle *meta = [NSFileHandle fileHandleForReadingAtPath:path];
+            [meta seekToFileOffset:metaOffset];
+            NSData *tag = [meta readDataOfLength:4];
+            [meta closeFile];
+            if (tag.length == 4 && memcmp(tag.bytes, "GDDD", 4) != 0)
+                return MCMacMediaCD;
+        }
+        return MCMacMediaDrive;
+    }
+
+    // DiskCopy 4.2 images are floppies by definition.
+    if (head.length >= 86 && b[0] < 64 && b[0x52] == 0x01 && b[0x53] == 0x00)
+    {
+        uint32_t dataSize = ((uint32_t)b[0x40] << 24) | ((uint32_t)b[0x41] << 16) | ((uint32_t)b[0x42] << 8) | b[0x43];
+        return dataSize == MCMacFloppyHDSize ? MCMacMediaFloppyHD : MCMacMediaFloppy;
+    }
+
+    // A whole drive starts with a Driver Descriptor Map ("ER").
+    if (head.length >= 2 && b[0] == 'E' && b[1] == 'R')
+        return MCMacMediaDrive;
+    if (size <= 819200)
+        return MCMacMediaFloppy;
+    if (size == MCMacFloppyHDSize)
+        return MCMacMediaFloppyHD;
+
+    BOOL blank = head.length >= 1024;
+    for (NSUInteger i = 0; blank && i < 1024; i++)
+        blank = (b[i] == 0);
+    if (blank)
+        return MCMacMediaBlankDrive;
+
+    // Boot blocks or an HFS master directory block at 1024, but no partition
+    // map: a volume, as Basilisk II and Mini vMac use.
+    BOOL hfs = head.length >= 1026 && b[1024] == 'B' && b[1025] == 'D';
+    BOOL boot = head.length >= 2 && b[0] == 'L' && b[1] == 'K';
+    if (hfs || boot)
+        return MCMacMediaVolume;
+    return MCMacMediaDrive;  // let MAME try
+}
+
+static BOOL MCMacMediaIsDrive(MCMacMedia kind)
+{
+    return kind == MCMacMediaDrive || kind == MCMacMediaBlankDrive;
 }
 
 /*! YES when a Mac floppy image starts with boot blocks (the "LK" signature),
@@ -863,6 +1034,11 @@ static BOOL MCMacDiskIsBootable(NSString *path)
 - (NSString *)chooseMacStartupDisk
 {
     if (!self.isMac || !_launchedFromDisk)
+        return nil;
+
+    // Hard drives start up by themselves (or are being set up from a CD).
+    MCMacMedia kind = MCMacMediaKind(_launchPath);
+    if (MCMacMediaIsDrive(kind) || kind == MCMacMediaVolume || kind == MCMacMediaCD)
         return nil;
 
     id setting = _settings[MCSettingStartupDisk];
@@ -933,7 +1109,10 @@ static BOOL MCMacDiskIsBootable(NSString *path)
             return @[ @"flop" ];
         case MCSystemMac:
             // With a startup disk in drive 1, the game's disks go in drive 2.
-            return _macStartupDisk ? @[ @"flop2" ] : @[ @"flop1", @"flop2" ];
+            // A game on a hard drive has no disk set; floppies go in drive 1.
+            if (_launchPath && !MCMacMediaIsDrive(MCMacMediaKind(_launchPath)) && _macStartupDisk)
+                return @[ @"flop2" ];
+            return @[ @"flop1", @"flop2" ];
         default:
             return @[ @"flop1", @"flop2" ];
     }
@@ -949,6 +1128,13 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     }
     if (self.isMac)
     {
+        // The SCSI hard disk (ID 6) and CD-ROM (ID 3) that MAME gives the
+        // Plus and the LC II; floppies as before.
+        MCMacMedia kind = MCMacMediaKind(path);
+        if (MCMacMediaIsDrive(kind))
+            return @[ @[ @"hard", path ] ];
+        if (kind == MCMacMediaCD)
+            return @[ @[ @"cdrm", path ] ];
         if (_macStartupDisk)
             return @[ @[ @"flop1", _macStartupDisk ], @[ @"flop2", path ] ];
         return @[ @[ @"flop1", path ] ];
@@ -1084,6 +1270,14 @@ static BOOL MCMacDiskIsBootable(NSString *path)
     if (self.chosenMachine)
         [candidates addObject:self.chosenMachine];
     [candidates addObjectsFromArray:self.catalogueMachines];
+    if (self.isMac && _launchPath)
+    {
+        // Hard drives, CDs and 1.4 MB disks are LC II media first (the Plus
+        // also has SCSI, but no SuperDrive and black and white only).
+        MCMacMedia kind = MCMacMediaKind(_launchPath);
+        if (MCMacMediaIsDrive(kind) || kind == MCMacMediaCD || kind == MCMacMediaFloppyHD)
+            [candidates addObject:@"maclc2"];
+    }
     [candidates addObject:self.defaultMachine];
     return candidates.array;
 }
@@ -1155,6 +1349,7 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
     if (entry->machines & MCMacMachine512KE) [machines addObject:@"mac512ke"];
     if (entry->machines & MCMacMachine512K)  [machines addObject:@"mac512k"];
     if (entry->machines & MCMacMachine128K)  [machines addObject:@"mac128k"];
+    if (entry->machines & MCMacMachineLC2)   [machines addObject:@"maclc2"];
     os_log_info(OE_CORE_LOG, "MAME's software list knows this disk: %{public}s (%{public}s), runs on %{public}@",
                 entry->description, entry->software, [machines componentsJoinedByString:@", "]);
 
@@ -1400,6 +1595,23 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
     opts.keepAspect = YES;
     _osd.verboseOutput = NO;
 
+    if (self.isMac && _launchedFromDisk && MCMacMediaKind(_launchPath) == MCMacMediaVolume)
+    {
+        if (error)
+        {
+            *error = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
+                NSLocalizedDescriptionKey: @"This is a Basilisk II / Mini vMac disk, not a whole hard drive.",
+                NSLocalizedRecoverySuggestionErrorKey:
+                    @"It holds only the Mac volume. MAME emulates the real hardware, which starts up from a "
+                    @"whole SCSI drive: a partition map and Apple's driver around the volume.\n\n"
+                    @"Use a whole-drive image instead (BlueSCSI/ZuluSCSI .hda images are), or set one up: "
+                    @"import an empty drive image, start it, and install System 7 from a CD image with "
+                    @"Insert Cart/Disk/Tape. See the Macintosh section of MAMEComputers/README.md.",
+            }];
+        }
+        return NO;
+    }
+
     // Before any media option: it decides which drive the game goes in.
     _macStartupDisk = [self chooseMacStartupDisk];
     if (_macStartupDisk)
@@ -1493,7 +1705,15 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
         // up: the Plus keyboard on the Plus, the original keyboard with its
         // numeric keypad on the 128K, 512K and 512Ke, whose software of the
         // time expects it. See -machineKeyMap:.
-        MC_SET(self.macHasPlusKeyboard ? @"usp" : @"pad", @"kbd");
+        if (self.macHasADB)
+        {
+            // The LC II: as much memory as it takes, for System 7.
+            MC_SET(@"10M", @"ramsize");
+        }
+        else
+        {
+            MC_SET(self.macHasPlusKeyboard ? @"usp" : @"pad", @"kbd");
+        }
     }
 
     NSDictionary *custom = _settings[MCSettingMAMEOptions];
@@ -1538,6 +1758,14 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
     if (self.isCommodore && _cartridgePath != nil)
     {
         MC_SET(_cartridgePath, @"cart");
+    }
+
+    // The CD stays in its drive across restarts (insert a System CD, then
+    // restart to start up from it), and the next time the game is opened.
+    NSString *cd = self.macCDPath;
+    if (cd)
+    {
+        MC_SET(cd, @"cdrm");
     }
 #undef MC_SET
 
@@ -1835,6 +2063,10 @@ static NSArray<NSString *> *MCNameList(id value)
         {
             _drive1Path = path;
         }
+        if (ok && [device isEqualToString:@"cdrm"])
+        {
+            [self setSetting:path forKey:MCSettingMacCD];
+        }
     }
 
     if (block)
@@ -1902,6 +2134,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         { @"mac512k",  @"Macintosh 512K (400K disks only)" },
         { @"mac128k",  @"Macintosh 128K (400K disks only)" },
         { @"mac512ke", @"Macintosh 512Ke" },
+        { @"maclc2",   @"Macintosh LC II (color, 10 MB)" },
     };
 
     MCMachine *list = apple2;
@@ -1954,6 +2187,12 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
             MCChoice(@"Always Start Up from the Startup Disk", MCModeStartupDisk, @"always", [mode isEqualToString:@"always"]),
             MCChoice(@"Never (start up from the game's disk)", MCModeStartupDisk, @"never", [mode isEqualToString:@"never"]),
         ])];
+        NSString *cd = self.macCDPath;
+        if (cd)
+        {
+            [modes addObject:MCToggle([NSString stringWithFormat:@"Eject CD (%@)", cd.lastPathComponent],
+                                      MCModeMacEjectCD, NO)];
+        }
         BOOL follows = self.macMouseFollowsPointer;
         [modes addObject:MCGroup(@"Mouse", @[
             MCChoice(@"Follows the Pointer", MCModeMacMouse, @"pointer", follows),
@@ -2085,6 +2324,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     {
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
+    }
+    else if ([key isEqualToString:MCModeMacEjectCD])
+    {
+        [_osd unloadMediaForDevice:@"cdrm"];
+        [self setSetting:nil forKey:MCSettingMacCD];
     }
     else if ([key isEqualToString:MCModeMacMouse] && !state)
     {
@@ -2669,7 +2913,7 @@ static uint32_t MCBigEndian32(const uint8_t *b) { return ((uint32_t)b[0] << 24) 
 
     // MemTop (0x108), ScrnBase (0x824) and ROMBase (0x2AE) are set once the
     // OS has started; before that (or with the ROM overlaid at address 0)
-    // they don't add up.
+    // they don't add up. The same globals work on the LC II under System 7.
     uint8_t memTopBytes[4], scrnBaseBytes[4], romBaseBytes[4];
     if (![_osd readProgramMemory:memTopBytes address:0x108 length:4] ||
         ![_osd readProgramMemory:scrnBaseBytes address:0x824 length:4] ||
@@ -2678,7 +2922,8 @@ static uint32_t MCBigEndian32(const uint8_t *b) { return ((uint32_t)b[0] << 24) 
     uint32_t memTop = MCBigEndian32(memTopBytes);
     uint32_t scrnBase = MCBigEndian32(scrnBaseBytes);
     uint32_t romBase = MCBigEndian32(romBaseBytes);
-    if (memTop < 0x20000 || (memTop & 0xFFF) != 0 || scrnBase == 0 || scrnBase >= memTop || romBase < memTop)
+    // (The LC II's screen is in its own video memory, above RAM.)
+    if (memTop < 0x20000 || (memTop & 0xFFF) != 0 || scrnBase == 0 || romBase < memTop)
         return;  // not started yet; try again next frame
 
     // OpenEmu's points are in the aspect-corrected view; the Mac's screen is

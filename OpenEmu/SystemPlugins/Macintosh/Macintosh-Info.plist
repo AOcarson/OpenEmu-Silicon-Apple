@@ -46,6 +46,12 @@
 		<string>image</string>
 		<string>img</string>
 		<string>moof</string>
+		<string>hda</string>
+		<string>hd</string>
+		<string>chd</string>
+		<string>iso</string>
+		<string>cdr</string>
+		<string>toast</string>
 	</array>
 	<key>OEGenericControlNamesKey</key>
 	<array>

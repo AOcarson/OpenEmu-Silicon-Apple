@@ -38,7 +38,7 @@ has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
 with `deps/mame-active` pointing at the one in use), so switching only
 rebuilds the core, not MAME. The first 0.289 build downloads that release
 (a few hundred MB) and compiles it from scratch. The installed core's version
-says which MAME it has: `0.250.8` or `0.289.8`.
+says which MAME it has: `0.250.9` or `0.289.9`.
 
 What to expect:
 
@@ -135,6 +135,8 @@ Copy these zips, unchanged, from a MAME 0.250-compatible set (0.289 for a
 | `mac128k.zip` | For the "Macintosh 128K" machine. |
 | `mac512k.zip` | For the "Macintosh 512K" machine (its own ROM revision). |
 | `mackbd_m0110.zip` | The original Mac keyboard and keypad, used by the 128K, 512K and 512Ke (some sets also have `mackbd_m0120.zip` for the keypad). |
+| `maclc2.zip` | Macintosh LC II ROM. |
+| `egret.zip` | The LC II's Egret chip (keyboard, mouse and power). |
 
 **Commodore 64**
 
@@ -331,13 +333,56 @@ gamepad button in MAME's Input Settings.
 
 The Macintosh system is a **Macintosh Plus** (1986: 4 MB of memory, two 800K
 floppy drives, System 1 to 7) — the reference machine for early black-and-white
-Mac games. The Display Mode menu's **Machine** also offers the Macintosh 512Ke
-and the original 128K (400K disks only).
+Mac games — and a **Macintosh LC II** (1992: 68030, colour, 10 MB, a 1.4 MB
+SuperDrive and a SCSI hard drive and CD-ROM, System 7). The Display Mode
+menu's **Machine** also offers the Macintosh 512K, 512Ke and the original 128K.
 
-Disk images: `.dsk`, `.img` and `.image` (raw 400K or 800K), DiskCopy
-4.2 (`.dc42`, `.dc`, `.diskcopy`) and Applesauce `.moof`. The library takes a
-file as a Mac disk when it holds a Mac (HFS or MFS) volume or Mac boot blocks,
-so Apple II disks of the same size and extension still go to the Apple IIs.
+Disk images: `.dsk`, `.img` and `.image` (raw 400K, 800K or 1.4 MB), DiskCopy
+4.2 (`.dc42`, `.dc`, `.diskcopy`), Applesauce `.moof`, and hard drives (see
+below). The library takes a file as a Mac disk when it holds a Mac (HFS or
+MFS) volume or Mac boot blocks, so Apple II disks of the same size and
+extension still go to the Apple IIs. 1.4 MB disks start on the LC II (the
+Plus has no SuperDrive).
+
+### Hard drives and the LC II
+
+A hard drive image is imported like a game: it shows up in the Macintosh
+library, and opening it starts a Mac from that drive (the LC II, or the Plus
+if the LC II's ROMs are missing or you choose it under Machine). Everything
+installed on the drive is there each time, and changes are saved to the
+image, as on a real hard drive.
+
+- **Whole-drive images** start up as they are: `.hda`/`.hd`/`.img`/`.dsk`
+  files with an Apple partition map and driver (BlueSCSI and ZuluSCSI
+  images are like this), or MAME hard disk `.chd` files.
+- **Basilisk II / Mini vMac disks** (`.dsk`, `.hfv`, `.img` volumes) are
+  only the Mac volume, without the partition map and Apple driver the real
+  hardware starts up from. Opening one says so; set up a drive as below and
+  copy what you need onto it.
+- **Setting up a new drive with System 7:**
+  1. Make an empty drive image in Terminal (500 MB here; HFS volumes on
+     System 7 go up to 2 GB):
+     `mkfile -n 500m "Macintosh HD.hda"`
+  2. Import `Macintosh HD.hda` into the Macintosh library and open it. The
+     LC II starts and shows the flashing question mark (nothing to start up
+     from yet).
+  3. **Insert Cart/Disk/Tape…** a System 7.5 CD image (`.iso`, `.cdr`,
+     `.toast`), then **Reset**: the LC II starts up from the CD. The CD
+     stays in its drive across restarts and the next time you open the
+     drive, until **Eject CD** in the Display Mode menu.
+  4. Run **Apple HD SC Setup** (on the CD's utilities, or the Disk Tools
+     disk) and **Initialize** the drive: MAME's drive answers as an Apple
+     Seagate, which HD SC Setup accepts. Then run the System 7.5 Installer
+     onto it.
+  5. Eject the CD and Reset: the LC II starts up from its hard drive.
+     Install games from floppies (Insert Cart/Disk/Tape…, 1.4 MB disks
+     included) or CDs.
+
+The LC II has the Apple Extended Keyboard: Command, Option and Control are
+the Mac's own keys, with Esc, the arrows, F-keys (except F9, the MAME menu)
+and the keypad. MAME 0.289 runs the LC II better than 0.250 (whose LC II
+sound is marked imperfect). Its ROMs are `maclc2.zip` and `egret.zip` (the
+Egret ADB/power chip).
 
 ### Startup disk
 
@@ -385,8 +430,10 @@ runs:
 
 1. The game's **Machine** setting, if you chose one.
 2. The Macs the software list names, in the Machine menu's order (Plus,
-   512K, 128K, 512Ke).
-3. The Macintosh Plus.
+   512K, 128K, 512Ke, LC II; software listed for colour Macs such as the
+   Mac II or LC family goes to the LC II).
+3. The LC II for hard drives, CDs and 1.4 MB disks.
+4. The Macintosh Plus.
 
 So a missing ROM set no longer locks a game out: it starts on the next
 machine, and the log says which ROMs the skipped one needed. Choosing a

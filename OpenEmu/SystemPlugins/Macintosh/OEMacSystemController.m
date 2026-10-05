@@ -26,18 +26,26 @@
 
 #import "OEMacSystemController.h"
 
-// Mac floppies: 400K (single-sided) and 800K (double-sided) as raw blocks,
-// alone or after a DiskCopy 4.2 header. (1.4 MB HD disks need a later Mac
-// than the Plus, so they aren't claimed yet.)
+// Mac floppies: 400K (single-sided), 800K (double-sided) and 1.4 MB (the
+// LC II's SuperDrive) as raw blocks, alone or after a DiskCopy 4.2 header;
+// whole SCSI hard drives (raw or MAME CHD); empty drive images to set up;
+// and bare volumes, which the core explains it can't start (they need
+// converting). CD images are only inserted into a running Mac, not imported.
 static const NSUInteger OEMacDisk400K  = 409600;
 static const NSUInteger OEMacDisk800K  = 819200;
+static const NSUInteger OEMacDisk1440K = 1474560;
 static const NSUInteger OEDiskCopyHeaderSize = 84;
 
 @implementation OEMacSystemController
 
+static BOOL OEMacIsFloppySize(NSUInteger size)
+{
+    return size == OEMacDisk400K || size == OEMacDisk800K || size == OEMacDisk1440K;
+}
+
 // Disk image extensions are shared with the Apple II family (and .dsk/.img
-// with other systems), so claim only images that are Mac disks: an HFS or
-// MFS volume, or Mac boot blocks. Everything else is left to other systems.
+// with other systems), so claim only images that are Mac disks. Everything
+// else is left to other systems.
 - (OEFileSupport)canHandleFile:(__kindof OEFile *)file
 {
     NSString *ext = file.fileExtension.lowercaseString;
@@ -47,8 +55,27 @@ static const NSUInteger OEDiskCopyHeaderSize = 84;
         // Applesauce's bit-level format for Mac floppies.
         return [[file readASCIIStringInRange:NSMakeRange(0, 4)] isEqualToString:@"MOOF"] ? OEFileSupportYes : OEFileSupportNo;
     }
+    if ([ext isEqualToString:@"iso"] || [ext isEqualToString:@"cdr"] || [ext isEqualToString:@"toast"])
+        return OEFileSupportNo;  // inserted while running, not games of their own
+
+    if ([ext isEqualToString:@"chd"])
+    {
+        // A MAME CHD holding a hard disk: its first metadata entry is "GDDD"
+        // (CDs are CHT2/CHCD/CHGD, and belong to other systems).
+        if (![[file readASCIIStringInRange:NSMakeRange(0, 8)] isEqualToString:@"MComprHD"])
+            return OEFileSupportNo;
+        NSData *offsetData = [file readDataInRange:NSMakeRange(0x30, 8)];
+        if (offsetData.length != 8)
+            return OEFileSupportNo;
+        uint64_t metaOffset = 0;
+        for (int i = 0; i < 8; i++)
+            metaOffset = (metaOffset << 8) | ((const uint8_t *)offsetData.bytes)[i];
+        NSString *tag = [file readASCIIStringInRange:NSMakeRange((NSUInteger)metaOffset, 4)];
+        return [tag isEqualToString:@"GDDD"] ? OEFileSupportYes : OEFileSupportNo;
+    }
 
     NSUInteger offset = 0, size = file.fileSize;
+    BOOL diskCopy = NO;
     NSData *header = [file readDataInRange:NSMakeRange(0, OEDiskCopyHeaderSize)];
     if (header.length == OEDiskCopyHeaderSize)
     {
@@ -57,27 +84,54 @@ static const NSUInteger OEDiskCopyHeaderSize = 84;
         const uint8_t *b = header.bytes;
         if (b[0] < 64 && b[0x52] == 0x01 && b[0x53] == 0x00)
         {
+            diskCopy = YES;
             offset = OEDiskCopyHeaderSize;
             size = ((NSUInteger)b[0x40] << 24) | ((NSUInteger)b[0x41] << 16) | ((NSUInteger)b[0x42] << 8) | b[0x43];
         }
     }
-    if (size != OEMacDisk400K && size != OEMacDisk800K)
-        return OEFileSupportNo;
 
-    // Volume signature in block 2: "BD" for HFS, 0xD2D7 for MFS.
+    NSData *start = [file readDataInRange:NSMakeRange(offset, 2)];
     NSData *volume = [file readDataInRange:NSMakeRange(offset + 1024, 2)];
-    if (volume.length == 2)
+    const uint8_t *s = start.length == 2 ? start.bytes : NULL;
+    const uint8_t *v = volume.length == 2 ? volume.bytes : NULL;
+    BOOL hfsOrMFS = v && ((v[0] == 'B' && v[1] == 'D') || (v[0] == 0xD2 && v[1] == 0xD7));
+    BOOL bootBlocks = s && s[0] == 'L' && s[1] == 'K';
+
+    if (diskCopy || OEMacIsFloppySize(size))
     {
-        const uint8_t *v = volume.bytes;
-        if ((v[0] == 'B' && v[1] == 'D') || (v[0] == 0xD2 && v[1] == 0xD7))
-            return OEFileSupportYes;
+        // Volume signature in block 2 ("BD" HFS, 0xD2D7 MFS), or boot blocks
+        // on a disk with its own file system.
+        return (hfsOrMFS || bootBlocks) ? OEFileSupportYes : OEFileSupportNo;
     }
 
-    // Boot blocks ("LK") on a disk with its own file system.
-    NSData *boot = [file readDataInRange:NSMakeRange(offset, 2)];
-    if (boot.length == 2 && ((const uint8_t *)boot.bytes)[0] == 'L' && ((const uint8_t *)boot.bytes)[1] == 'K')
+    // Larger than a floppy: a hard drive. Only extensions hard drives use.
+    if (![@[ @"hda", @"hd", @"img", @"dsk", @"image" ] containsObject:ext])
+        return OEFileSupportNo;
+    if (size % 512 != 0 || size < 2 * 1024 * 1024)
+        return OEFileSupportNo;
+
+    // A whole drive: Driver Descriptor Map ("ER") then a partition map ("PM").
+    NSData *pm = [file readDataInRange:NSMakeRange(512, 2)];
+    if (s && s[0] == 'E' && s[1] == 'R' && pm.length == 2 &&
+        ((const uint8_t *)pm.bytes)[0] == 'P' && ((const uint8_t *)pm.bytes)[1] == 'M')
         return OEFileSupportYes;
 
+    // A Basilisk II / Mini vMac volume (the core says how to convert it).
+    if (hfsOrMFS)
+        return OEFileSupportYes;
+
+    // An empty image to set up as a drive (made with `mkfile`): .hda/.hd
+    // only, since an empty .img or .dsk could be anything.
+    if ([ext isEqualToString:@"hda"] || [ext isEqualToString:@"hd"])
+    {
+        NSData *first = [file readDataInRange:NSMakeRange(0, 1024)];
+        const uint8_t *f = first.bytes;
+        BOOL blank = first.length == 1024;
+        for (NSUInteger i = 0; blank && i < 1024; i++)
+            blank = (f[i] == 0);
+        if (blank)
+            return OEFileSupportYes;
+    }
     return OEFileSupportNo;
 }
 

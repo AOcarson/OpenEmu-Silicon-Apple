@@ -21,8 +21,16 @@ import xml.etree.ElementTree as ET
 LISTS = ["mac_flop_orig.xml", "mac_flop_clcracked.xml", "mac_flop.xml"]
 
 # MAME machine name -> bit in MCMacMachineMask. Only the machines the core
-# offers; "MC68000" in a list means any 68000 Mac.
-MACHINES = {"mac128k": 1, "mac512k": 2, "mac512ke": 4, "macplus": 8}
+# offers; "MC68000" in a list means any 68000 Mac. Software for the 68020/030
+# colour Macs (Mac II, LC family, Classic II, Color Classic) runs on the
+# core's LC II.
+LC2 = 16
+MACHINES = {
+    "mac128k": 1, "mac512k": 2, "mac512ke": 4, "macplus": 8,
+    "macii": LC2, "maciix": LC2, "maciicx": LC2, "maciici": LC2, "maciisi": LC2,
+    "maclc": LC2, "maclc2": LC2, "maclc3": LC2, "macclas2": LC2, "maccclas": LC2,
+    "MC68020": LC2, "MC68020_32": LC2,
+}
 ANY_68000 = 1 | 2 | 4 | 8
 
 
@@ -71,6 +79,7 @@ def main():
         "    MCMacMachine512K  = 2,",
         "    MCMacMachine512KE = 4,",
         "    MCMacMachinePlus  = 8,",
+        "    MCMacMachineLC2   = 16,",
         "} MCMacMachineMask;",
         "",
         "typedef struct {",

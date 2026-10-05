@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build the home computers core (MAMEComputers.oecoreplugin) from source.
 #
-# Builds a small MAME that contains only the Apple //e, Apple IIgs,
-# Macintosh Plus, Commodore 64 and Commodore 128 drivers (and the cards,
-# drives and devices they need), as a headless dylib, then the OpenEmu core
-# plugin around it. The one core serves OpenEmu's Apple IIe, Apple IIgs,
+# Builds a small MAME that contains only the Apple //e, Apple IIgs, compact
+# Macintosh (128K to Plus), Macintosh LC II, Commodore 64 and Commodore 128
+# drivers (and the cards, drives and devices they need), as a headless dylib,
+# then the OpenEmu core plugin around it. The one core serves OpenEmu's Apple IIe, Apple IIgs,
 # Commodore 64, Commodore 128 and Macintosh systems.
 #
 # Usage:
@@ -34,7 +34,7 @@ case "$MAME_VERSION" in
 esac
 
 # The core's own revision; the bundle version is <MAME version>.<this>.
-CORE_REVISION="8"
+CORE_REVISION="9"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -82,7 +82,7 @@ cd "$MAME_SRC"
 make NOWERROR=1 REGENIE=1 macosx_arm64_clang \
   OSD="headless" verbose=1 TARGETOS="macosx" CONFIG="release" \
   TARGET=mame SUBTARGET=mamecomputers \
-  SOURCES=src/mame/apple/apple2e.cpp,src/mame/apple/apple2gs.cpp,src/mame/apple/mac128.cpp,src/mame/commodore/c64.cpp,src/mame/commodore/c128.cpp \
+  SOURCES=src/mame/apple/apple2e.cpp,src/mame/apple/apple2gs.cpp,src/mame/apple/mac128.cpp,src/mame/apple/maclc.cpp,src/mame/commodore/c64.cpp,src/mame/commodore/c128.cpp \
   MACOSX_DEPLOYMENT_TARGET=11.0 \
   -j"$(sysctl -n hw.ncpu)"
 
