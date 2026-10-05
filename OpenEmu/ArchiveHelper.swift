@@ -67,9 +67,22 @@ enum ArchiveHelper {
     /// - Parameter didDecompress: Upon return, contains `true` if the file was extracted successfully,
     /// or `false` if the archive was invalid or if the file has been extracted before.
     /// - Returns: A file URL pointing to the extracted file.
+    /// Disk and hard drive image types that are never archives, whatever
+    /// XADMaster's looser format checks make of their first bytes: Mac and
+    /// Apple II floppies and Mac SCSI hard drives (whole drives are
+    /// partitioned, and can look like containers).
+    static func isNeverAnArchive(extension ext: String) -> Bool {
+        return ["hda", "hd", "dsk", "img", "image", "dc", "dc42", "diskcopy", "moof",
+                "woz", "2mg", "po", "do", "nib"].contains(ext.lowercased())
+    }
+
     static func decompressFileInArchive(at url: URL, atIndex index: Int = 0, withHash hash: String? = nil, didDecompress: UnsafeMutablePointer<ObjCBool>? = nil) -> URL? {
         
         didDecompress?.pointee = false
+
+        if isNeverAnArchive(extension: url.pathExtension) {
+            return nil
+        }
         
         let entryIndex = Int32(index)
         

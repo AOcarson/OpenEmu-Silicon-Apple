@@ -205,6 +205,7 @@ final class ImportOperation: Operation, NSCopying, @unchecked Sendable {
         }
         
         if Self.isInvalidExtension(at: url) {
+            os_log(.info, log: .import, "Not imported: %{public}@ (no system lists this extension)", url.lastPathComponent)
             return nil
         }
 
@@ -510,6 +511,14 @@ final class ImportOperation: Operation, NSCopying, @unchecked Sendable {
     
     private func exit(with status: ExitStatus, error: Error?) {
         let context = importer.context!
+
+        // Release builds have no DLog output, so say why a file wasn't imported.
+        if status == .errorFatal || status == .errorResolvable {
+            let nsError = error as NSError?
+            os_log(.error, log: .import, "Not imported: %{public}@ (%{public}@ %ld: %{public}@)",
+                   url.lastPathComponent, nsError?.domain ?? "no error", nsError?.code ?? 0,
+                   nsError?.localizedDescription ?? "")
+        }
         
         if status == .success,
            let rom = rom,
@@ -627,7 +636,7 @@ final class ImportOperation: Operation, NSCopying, @unchecked Sendable {
         // nds and some isos might be recognized as compressed archives by XADArchive
         // but we don't ever want to extract anything from those files
         // Exclusions added here also need added to GameInfoHelper and OpenEmuHelperApp
-        if ext == "nds" || ext == "iso" {
+        if ext == "nds" || ext == "iso" || ArchiveHelper.isNeverAnArchive(extension: ext) {
             return
         }
         
