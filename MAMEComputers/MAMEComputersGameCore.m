@@ -1409,10 +1409,10 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
                     self.macStartupDiskFolder);
 
     // The first candidate whose ROMs are all present runs. If none can,
-    // the error names what the first one (the player's choice, or the
-    // game's best fit) is missing.
+    // the error lists what each one is missing.
     _activeMachine = nil;
     NSError *firstError = nil;
+    NSMutableArray<NSArray *> *missingROMs = [NSMutableArray array];
     for (NSString *candidate in self.machineCandidates)
     {
         AuditResult *audit = nil;
@@ -1430,9 +1430,12 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
         }
         else if (audit.summary == AuditSummaryIncorrect || audit.summary == AuditSummaryNotFound)
         {
-            candidateError = [self errorForAudit:audit];
-            os_log_info(OE_CORE_LOG, "can't start %{public}@: %{public}@", candidate,
-                        candidateError.localizedRecoverySuggestion ?: @"ROMs missing");
+            NSArray<NSString *> *missing = [self missingSetsForAudit:audit];
+            NSString *name = _osd.driver.fullName ?: candidate;
+            [missingROMs addObject:@[ name, missing ]];
+            os_log_error(OE_CORE_LOG, "can't start %{public}@ (%{public}@), missing: %{public}@", name, candidate,
+                         [[missing componentsJoinedByString:@".zip, "] stringByAppendingString:@".zip"]);
+            continue;
         }
         else
         {
@@ -1445,7 +1448,7 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
     if (_activeMachine == nil)
     {
         if (error)
-            *error = firstError;
+            *error = missingROMs.count > 0 ? [self errorForMissingROMs:missingROMs] : firstError;
         return NO;
     }
     os_log_info(OE_CORE_LOG, "machine %{public}@", _activeMachine);
@@ -1577,7 +1580,9 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
     return YES;
 }
 
-- (NSError *)errorForAudit:(AuditResult *)audit
+/*! The ROM sets (zip names) an audit found missing, for the driver last
+ *  passed to -setDriver:. */
+- (NSArray<NSString *> *)missingSetsForAudit:(AuditResult *)audit
 {
     NSMutableOrderedSet<NSString *> *missing = [NSMutableOrderedSet orderedSet];
     GameDriver *driver = _osd.driver;
@@ -1606,16 +1611,36 @@ static int MCCompareSoftwareEntry(const void *key, const void *entry)
         }
     }
 
+    return missing.array;
+}
+
+#if defined(OE_HEADLESS_MAME_VERSION) && OE_HEADLESS_MAME_VERSION >= 289
+static NSString *const MCMAMEVersion = @"0.289";
+#else
+static NSString *const MCMAMEVersion = @"0.250";
+#endif
+
+/*! The error shown when no candidate machine can start: each machine tried
+ *  (name, missing zips), in order. */
+- (NSError *)errorForMissingROMs:(NSArray<NSArray *> *)machines
+{
     NSMutableString *list = [NSMutableString string];
-    for (NSString *set in missing)
+    for (NSArray *machine in machines)
     {
-        [list appendFormat:@"  • %@.zip\n", set];
+        if (machines.count > 1)
+            [list appendFormat:@"%@:\n", machine[0]];
+        for (NSString *set in machine[1])
+            [list appendFormat:@"  • %@.zip\n", set];
+        if (machines.count > 1)
+            [list appendString:@"\n"];
     }
 
     NSString *suggestion = [NSString stringWithFormat:
-        @"%@ needs these ROM sets from a MAME 0.250-compatible ROM set:\n\n%@\n"
+        @"%@ from a MAME %@-compatible ROM set:\n\n%@\n"
         @"Copy the .zip files, unchanged, into:\n\n%@",
-        driver.fullName ?: @"This machine", list, self.biosDirectoryPath ?: @"the OpenEmu BIOS folder"];
+        machines.count > 1 ? @"None of the machines this game can run on has all its ROMs. Each needs these ROM sets"
+                           : [NSString stringWithFormat:@"%@ needs these ROM sets", machines.firstObject[0]],
+        MCMAMEVersion, list, self.biosDirectoryPath ?: @"the OpenEmu BIOS folder"];
 
     return [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
         NSLocalizedDescriptionKey: @"System ROMs are missing.",

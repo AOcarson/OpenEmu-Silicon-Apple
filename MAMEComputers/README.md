@@ -38,7 +38,7 @@ has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
 with `deps/mame-active` pointing at the one in use), so switching only
 rebuilds the core, not MAME. The first 0.289 build downloads that release
 (a few hundred MB) and compiles it from scratch. The installed core's version
-says which MAME it has: `0.250.7` or `0.289.7`.
+says which MAME it has: `0.250.8` or `0.289.8`.
 
 What to expect:
 
