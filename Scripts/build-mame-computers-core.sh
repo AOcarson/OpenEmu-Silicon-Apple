@@ -34,7 +34,7 @@ case "$MAME_VERSION" in
 esac
 
 # The core's own revision; the bundle version is <MAME version>.<this>.
-CORE_REVISION="9"
+CORE_REVISION="10"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"

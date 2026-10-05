@@ -717,6 +717,11 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
     BOOL    _mouseHasLast;
     OEIntPoint _mouseLast;
     BOOL    _pointerMoved;       // Mac: _mouseLast not yet given to the Mac
+    // ADB Macs: the pointer is steered by mouse movement (see -steerMacPointer).
+    double  _steerGain[5];       // Mac pixels moved per unit, per step size (1, 2, 4, 8, 16), learnt
+    int     _steerSent[2][2];    // the last two frames' steps (h, v)
+    int     _steerLast[2];       // the cursor's position last frame (h, v)
+    BOOL    _steerHasLast;
 
     BOOL _screenPending;         // C128: apply the Screen setting once running
 
@@ -2438,7 +2443,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
     [self syncMenuMode];
     [self latchMouse];
-    [self placeMacPointer];
+    [self followMacPointer];
 
     if (_screenPending)
     {
@@ -2881,7 +2886,137 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
 
 static uint32_t MCBigEndian32(const uint8_t *b) { return ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3]; }
 
-/*! Mac: puts the Mac's cursor under the host pointer, as Mini vMac does.
+/*! YES once the Mac OS has set up its low-memory globals: MemTop (0x108),
+ *  ScrnBase (0x824) and ROMBase (0x2AE) don't add up before it has started
+ *  (or with the ROM overlaid at address 0). Nothing is read from or written
+ *  to the OS's mouse variables before then, so the ROM's start-up memory
+ *  test is never disturbed. */
+- (BOOL)macOSIsRunning
+{
+    uint8_t memTopBytes[4], scrnBaseBytes[4], romBaseBytes[4];
+    if (![_osd readProgramMemory:memTopBytes address:0x108 length:4] ||
+        ![_osd readProgramMemory:scrnBaseBytes address:0x824 length:4] ||
+        ![_osd readProgramMemory:romBaseBytes address:0x2AE length:4])
+        return NO;
+    uint32_t memTop = MCBigEndian32(memTopBytes);
+    uint32_t scrnBase = MCBigEndian32(scrnBaseBytes);
+    uint32_t romBase = MCBigEndian32(romBaseBytes);
+    // (The LC II's screen is in its own video memory, above RAM.)
+    return !(memTop < 0x20000 || (memTop & 0xFFF) != 0 || scrnBase == 0 || romBase < memTop);
+}
+
+/*! The host pointer as a point on the Mac's screen. OpenEmu's points are in
+ *  the aspect-corrected view; the Mac's screen is the emulated screen
+ *  (512 x 342 on the compact Macs, 640 x 480 on the LC II). */
+- (BOOL)macScreenPointForHostPoint:(OEIntPoint)point h:(long *)h v:(long *)v
+{
+    int width = _screenRect.size.width, height = _screenRect.size.height;
+    if (width <= 0 || height <= 0 || _aspectSize.width <= 0 || _aspectSize.height <= 0)
+        return NO;
+    *h = MAX(0, MIN(width - 1, lround((double)point.x * width  / _aspectSize.width)));
+    *v = MAX(0, MIN(height - 1, lround((double)point.y * height / _aspectSize.height)));
+    return YES;
+}
+
+/*! Called on the emulation thread before each frame: keeps the Mac's cursor
+ *  under the host pointer (see -placeMacPointer and -steerMacPointer). */
+- (void)followMacPointer
+{
+    if (!self.macMouseFollowsPointer || _menuMode)
+        return;
+    if (self.macHasADB)
+        [self steerMacPointer];
+    else
+        [self placeMacPointer];
+}
+
+/*! ADB Macs (the LC II): moves the emulated mouse towards the host pointer.
+ *
+ *  System 7 on ADB Macs keeps its own record of the cursor (the Cursor
+ *  Device Manager) and puts the cursor back there whenever the mouse
+ *  reports anything, a click included, so writing the position into low
+ *  memory as on the compact Macs (-placeMacPointer) loses out, and menus
+ *  can't be dragged through. Instead the cursor's actual position, Mouse
+ *  (0x830), is read each frame and the mouse is moved by the difference.
+ *  The OS speeds mouse movement up (the Mouse control panel's tracking
+ *  speed), so how far the cursor moves is learnt as it goes, and only part
+ *  of the remaining distance is sent each frame, which settles the cursor
+ *  under the pointer (in about a sixth of a second for a long move) without
+ *  overshooting. */
+- (void)steerMacPointer
+{
+    os_unfair_lock_lock(&_mouseLock);
+    BOOL known = _mouseHasLast;
+    OEIntPoint point = _mouseLast;
+    os_unfair_lock_unlock(&_mouseLock);
+
+    long target[2];
+    uint8_t mouse[4];
+    if (!known || ![self macScreenPointForHostPoint:point h:&target[0] v:&target[1]] ||
+        !self.macOSIsRunning || ![_osd readProgramMemory:mouse address:0x830 length:4])
+    {
+        _steerHasLast = NO;
+        memset(_steerSent, 0, sizeof(_steerSent));
+        return;
+    }
+    int current[2] = {
+        (int16_t)((mouse[2] << 8) | mouse[3]),   // h
+        (int16_t)((mouse[0] << 8) | mouse[1]),   // v
+    };
+
+    // The OS speeds bigger movements up more, so movement is sent in steps of
+    // 1, 2, 4, 8 or 16, and how far the cursor moves per unit is learnt for
+    // each step size, from frames where the same step was sent twice in a
+    // row (with a frame of delay between sending and seeing the cursor
+    // move, one frame's movement can't be pinned on one step otherwise).
+    static const int steps[5] = { 1, 2, 4, 8, 16 };
+    if (_steerGain[0] <= 0)
+    {
+        const double initial[5] = { 1.0, 1.0, 1.5, 2.0, 2.5 };  // a typical tracking speed
+        memcpy(_steerGain, initial, sizeof(initial));
+    }
+    for (int axis = 0; axis < 2; axis++)
+    {
+        int step = _steerSent[axis][1];
+        if (_steerHasLast && step != 0 && step == _steerSent[axis][0])
+        {
+            int index = 0;
+            while (index < 4 && steps[index] != abs(step))
+                index++;
+            double ratio = fabs((double)(current[axis] - _steerLast[axis])) / abs(step);
+            if (ratio > 0.2 && ratio < 8.0)
+                _steerGain[index] = 0.6 * _steerGain[index] + 0.4 * ratio;
+        }
+    }
+
+    // Each frame, the largest step expected to cover at most about a third
+    // of the remaining distance (stable with a frame or two of delay);
+    // within a pixel, stay put.
+    for (int axis = 0; axis < 2; axis++)
+    {
+        long error = target[axis] - current[axis];
+        int send = 0;
+        if (labs(error) > 1)
+        {
+            double budget = labs(error) * 0.35;
+            int choice = 1;
+            for (int i = 0; i < 5; i++)
+            {
+                if (_steerGain[i] * steps[i] <= budget)
+                    choice = steps[i];
+            }
+            send = error > 0 ? choice : -choice;
+        }
+        _steerSent[axis][0] = _steerSent[axis][1];
+        _steerSent[axis][1] = send;
+        _steerLast[axis] = current[axis];
+        _mouseDelta[axis] = send * MCRelativePerPixel;
+    }
+    _steerHasLast = YES;
+}
+
+/*! Compact Macs: puts the Mac's cursor under the host pointer, as Mini vMac
+ *  does.
  *
  *  The Mac only gets movement from its mouse and speeds it up (mouse
  *  tracking), so a cursor driven by the host pointer's movement drifts away
@@ -2895,46 +3030,19 @@ static uint32_t MCBigEndian32(const uint8_t *b) { return ((uint32_t)b[0] << 24) 
  *  Only a pointer move is written, so a game that moves the cursor itself
  *  keeps that position until the pointer moves again.
  *
- *  Called on the emulation thread before each frame. Nothing is written
- *  until the Mac OS has set up its globals, so the ROM's start-up memory
- *  test is never disturbed. Games that read the mouse hardware themselves
- *  need the Relative setting. */
+ *  Games that read the mouse hardware themselves need the Relative setting. */
 - (void)placeMacPointer
 {
-    if (!self.macMouseFollowsPointer || _menuMode || _aspectSize.width <= 0 || _aspectSize.height <= 0)
-        return;
-
     os_unfair_lock_lock(&_mouseLock);
     BOOL moved = _pointerMoved;
     OEIntPoint point = _mouseLast;
     os_unfair_lock_unlock(&_mouseLock);
-    if (!moved)
+    if (!moved || !self.macOSIsRunning)
         return;
 
-    // MemTop (0x108), ScrnBase (0x824) and ROMBase (0x2AE) are set once the
-    // OS has started; before that (or with the ROM overlaid at address 0)
-    // they don't add up. The same globals work on the LC II under System 7.
-    uint8_t memTopBytes[4], scrnBaseBytes[4], romBaseBytes[4];
-    if (![_osd readProgramMemory:memTopBytes address:0x108 length:4] ||
-        ![_osd readProgramMemory:scrnBaseBytes address:0x824 length:4] ||
-        ![_osd readProgramMemory:romBaseBytes address:0x2AE length:4])
+    long h, v;
+    if (![self macScreenPointForHostPoint:point h:&h v:&v])
         return;
-    uint32_t memTop = MCBigEndian32(memTopBytes);
-    uint32_t scrnBase = MCBigEndian32(scrnBaseBytes);
-    uint32_t romBase = MCBigEndian32(romBaseBytes);
-    // (The LC II's screen is in its own video memory, above RAM.)
-    if (memTop < 0x20000 || (memTop & 0xFFF) != 0 || scrnBase == 0 || romBase < memTop)
-        return;  // not started yet; try again next frame
-
-    // OpenEmu's points are in the aspect-corrected view; the Mac's screen is
-    // the emulated screen (512 x 342 on the compact Macs).
-    int width = _screenRect.size.width, height = _screenRect.size.height;
-    if (width <= 0 || height <= 0)
-        return;
-    long h = lround((double)point.x * width  / _aspectSize.width);
-    long v = lround((double)point.y * height / _aspectSize.height);
-    h = MAX(0, MIN(width - 1, h));
-    v = MAX(0, MIN(height - 1, v));
 
     uint8_t where[12] = {
         (uint8_t)(v >> 8), (uint8_t)v, (uint8_t)(h >> 8), (uint8_t)h,   // MTemp

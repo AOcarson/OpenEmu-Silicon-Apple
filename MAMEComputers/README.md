@@ -39,7 +39,7 @@ built on MAME 0.250, the OpenEmu fork the Arcade core uses:
 (`deps/mame` for 0.250, `deps/mame-0289` for 0.289, with `deps/mame-active`
 pointing at the one in use), so switching only rebuilds the core, not MAME.
 The first build of a version downloads it and compiles it from scratch. The
-installed core's version says which MAME it has: `0.289.9` or `0.250.9`.
+installed core's version says which MAME it has: `0.289.10` or `0.250.10`.
 
 Differences between the two:
 
@@ -447,10 +447,15 @@ keypad keys that carry the arrows (/ , + *).
 **Mouse** (Display Mode menu, per game):
 
 - **Follows the Pointer** (default): the Mac's cursor sits under your
-  pointer. Once the Mac OS has started, the core writes the pointer's
-  position into the OS's own mouse variables each time the pointer moves
-  (MTemp, RawMouse and Mouse in low memory, then CrsrNew), as Mini vMac
-  does, so the Mac's mouse acceleration can't pull the two apart. Before the
+  pointer. On the LC II (System 7's ADB mouse), the core instead moves the
+  emulated mouse towards your pointer each frame, learning how much the
+  Mac's mouse tracking speeds it up, so clicks and drags (menus) behave as
+  with a real mouse; setting System 7's Mouse control panel to its slowest
+  speed makes it settle quickest. On the compact Macs, once the Mac OS has
+  started, the core writes the pointer's position into the OS's own mouse
+  variables each time the pointer moves (MTemp, RawMouse and Mouse in low
+  memory, then CrsrNew), as Mini vMac does, so the Mac's mouse acceleration
+  can't pull the two apart. Before the
   OS starts (the happy Mac and the disk icon) the cursor doesn't move.
 - **Relative**: the old behaviour, an emulated mouse moved by the distance
   the pointer moves. For the rare game that reads the mouse hardware itself
