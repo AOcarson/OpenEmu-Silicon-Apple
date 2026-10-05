@@ -38,7 +38,7 @@ has its own MAME checkout (`deps/mame` for 0.250, `deps/mame-0289` for 0.289,
 with `deps/mame-active` pointing at the one in use), so switching only
 rebuilds the core, not MAME. The first 0.289 build downloads that release
 (a few hundred MB) and compiles it from scratch. The installed core's version
-says which MAME it has: `0.250.5` or `0.289.5`.
+says which MAME it has: `0.250.6` or `0.289.6`.
 
 What to expect:
 
@@ -361,10 +361,23 @@ Plus keyboard.
 
 Command is Command and Option is Option. The Mac Plus keyboard has no Control
 or Esc key (in Mac software Command-. usually stands in for Esc); its keypad
-has Clear (the Mac's Clear key or Num Lock) and =. The Mac's pointer is the
-mouse; as on the IIgs it moves the emulated pointer by the distance moved, so
-the two can drift apart at the edges of the window. A gamepad button (or a
+has Clear (the Mac's Clear key or Num Lock) and =. A gamepad button (or a
 key) can be bound to **Mouse Button** in OpenEmu's Controls.
+
+**Mouse** (Display Mode menu, per game):
+
+- **Follows the Pointer** (default): the Mac's cursor sits under your
+  pointer. Once the Mac OS has started, the core writes the pointer's
+  position into the OS's own mouse variables each time the pointer moves
+  (MTemp, RawMouse and Mouse in low memory, then CrsrNew), as Mini vMac
+  does, so the Mac's mouse acceleration can't pull the two apart. Before the
+  OS starts (the happy Mac and the disk icon) the cursor doesn't move.
+- **Relative**: the old behaviour, an emulated mouse moved by the distance
+  the pointer moves. For the rare game that reads the mouse hardware itself
+  and ignores the OS's cursor.
+
+The memory access needs the core's MAME patch from 0.250.6 / 0.289.6 or
+later (`-[OSD readProgramMemory:…]` / `writeProgramMemory:…`).
 
 ## Choosing the system when importing
 

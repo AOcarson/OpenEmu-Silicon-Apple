@@ -62,6 +62,7 @@ static NSString *const MCSettingScreen           = @"Screen";                   
 static NSString *const MCSettingIIgsSpeed        = @"IIgsSpeed";                 // IIgs machine: "normal" (1 MHz) or "fast" (2.8 MHz)
 static NSString *const MCSettingJoystickRange    = @"JoystickRange";             // IIgs machine: percent, 50-100, default 100
 static NSString *const MCSettingStartupDisk      = @"StartupDisk";               // Mac: "auto", "always" or "never", default "auto"
+static NSString *const MCSettingMacMouse         = @"MacMouse";                  // Mac: "pointer" (follows the host pointer) or "relative", default "pointer"
 static NSString *const MCSettingMAMEOptions      = @"MAMEOptions";               // { option: value }, applied at boot
 static NSString *const MCSettingMAMEPlugins      = @"MAMEPlugins";               // [ plugin folder name ], added
 static NSString *const MCSettingDisabledPlugins  = @"DisabledMAMEPlugins";       // [ plugin folder name ], removed
@@ -86,6 +87,7 @@ static NSString *const MCModeScreen       = @"mc.screen";
 static NSString *const MCModeIIgsSpeed    = @"mc.iigsspeed";
 static NSString *const MCModeJoystickRange = @"mc.joystickrange";
 static NSString *const MCModeStartupDisk  = @"mc.startupdisk";
+static NSString *const MCModeMacMouse     = @"mc.macmouse";
 
 // The IIgs's "Apple II software speed" setting, which the core's MAME patch
 // adds to the IIgs's Machine Configuration: Normal keeps the machine at
@@ -581,6 +583,7 @@ static NSSet<NSString *> *MCMacDiskExtensions(void);
     BOOL    _padMouseDown;       // a control bound to Mac "Mouse Button"
     BOOL    _mouseHasLast;
     OEIntPoint _mouseLast;
+    BOOL    _pointerMoved;       // Mac: _mouseLast not yet given to the Mac
 
     BOOL _screenPending;         // C128: apply the Screen setting once running
 
@@ -1737,6 +1740,11 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
             MCChoice(@"Always Start Up from the Startup Disk", MCModeStartupDisk, @"always", [mode isEqualToString:@"always"]),
             MCChoice(@"Never (start up from the game's disk)", MCModeStartupDisk, @"never", [mode isEqualToString:@"never"]),
         ])];
+        BOOL follows = self.macMouseFollowsPointer;
+        [modes addObject:MCGroup(@"Mouse", @[
+            MCChoice(@"Follows the Pointer", MCModeMacMouse, @"pointer", follows),
+            MCChoice(@"Relative (for games that read the mouse hardware)", MCModeMacMouse, @"relative", !follows),
+        ])];
     }
     else
     {
@@ -1864,6 +1872,13 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
         [self setSetting:@(value.integerValue == 1 ? 1 : 2) forKey:MCSettingJoystickPort];
         [self updateC64Signals];
     }
+    else if ([key isEqualToString:MCModeMacMouse] && !state)
+    {
+        [self setSetting:([value isEqualToString:@"relative"] ? @"relative" : @"pointer") forKey:MCSettingMacMouse];
+        os_unfair_lock_lock(&_mouseLock);
+        _pointerMoved = _mouseHasLast;   // place the cursor at once
+        os_unfair_lock_unlock(&_mouseLock);
+    }
     else if ([key isEqualToString:MCModeStartupDisk] && !state)
     {
         NSString *choice = ([value isEqualToString:@"always"] || [value isEqualToString:@"never"]) ? value : @"auto";
@@ -1963,6 +1978,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
     [self syncMenuMode];
     [self latchMouse];
+    [self placeMacPointer];
 
     if (_screenPending)
     {
@@ -2371,6 +2387,7 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     }
     _mouseLast = point;
     _mouseHasLast = YES;
+    _pointerMoved = YES;
     os_unfair_lock_unlock(&_mouseLock);
 }
 
@@ -2380,12 +2397,98 @@ static NSArray<NSValue *> *MCMachinesFor(MCSystem system)
     if (!self.hasMouse)
         return;
 
+    // When the Mac's cursor is placed directly (see -placeMacPointer), the
+    // emulated mouse doesn't move as well, or the two would fight.
+    BOOL placed = self.macMouseFollowsPointer;
     os_unfair_lock_lock(&_mouseLock);
     for (int axis = 0; axis < 2; axis++)
     {
-        _mouseDelta[axis] = (int32_t)(_mouseAccum[axis] * MCRelativePerPixel);
+        _mouseDelta[axis] = placed ? 0 : (int32_t)(_mouseAccum[axis] * MCRelativePerPixel);
         _mouseAccum[axis] = 0;
     }
+    os_unfair_lock_unlock(&_mouseLock);
+}
+
+/*! Mac: whether the Mac's cursor is put where the host pointer is (the
+ *  default) rather than moved by an emulated mouse. */
+- (BOOL)macMouseFollowsPointer
+{
+    if (!self.isMac)
+        return NO;
+    id setting = _settings[MCSettingMacMouse];
+    return !([setting isKindOfClass:[NSString class]] && [setting isEqualToString:@"relative"]);
+}
+
+static uint32_t MCBigEndian32(const uint8_t *b) { return ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3]; }
+
+/*! Mac: puts the Mac's cursor under the host pointer, as Mini vMac does.
+ *
+ *  The Mac only gets movement from its mouse and speeds it up (mouse
+ *  tracking), so a cursor driven by the host pointer's movement drifts away
+ *  from it. Instead, when the pointer has moved, the new position is written
+ *  into the Mac OS's own mouse variables in low memory: MTemp (0x828),
+ *  RawMouse (0x82C) and Mouse (0x830, what GetMouse reports), all as (v, h).
+ *  With MTemp and RawMouse equal the OS sees no movement to accelerate, and
+ *  setting CrsrNew (0x8CE) from CrsrCouple (0x8CF) makes its cursor task
+ *  draw the cursor there on the next tick.
+ *
+ *  Only a pointer move is written, so a game that moves the cursor itself
+ *  keeps that position until the pointer moves again.
+ *
+ *  Called on the emulation thread before each frame. Nothing is written
+ *  until the Mac OS has set up its globals, so the ROM's start-up memory
+ *  test is never disturbed. Games that read the mouse hardware themselves
+ *  need the Relative setting. */
+- (void)placeMacPointer
+{
+    if (!self.macMouseFollowsPointer || _menuMode || _aspectSize.width <= 0 || _aspectSize.height <= 0)
+        return;
+
+    os_unfair_lock_lock(&_mouseLock);
+    BOOL moved = _pointerMoved;
+    OEIntPoint point = _mouseLast;
+    os_unfair_lock_unlock(&_mouseLock);
+    if (!moved)
+        return;
+
+    // MemTop (0x108), ScrnBase (0x824) and ROMBase (0x2AE) are set once the
+    // OS has started; before that (or with the ROM overlaid at address 0)
+    // they don't add up.
+    uint8_t memTopBytes[4], scrnBaseBytes[4], romBaseBytes[4];
+    if (![_osd readProgramMemory:memTopBytes address:0x108 length:4] ||
+        ![_osd readProgramMemory:scrnBaseBytes address:0x824 length:4] ||
+        ![_osd readProgramMemory:romBaseBytes address:0x2AE length:4])
+        return;
+    uint32_t memTop = MCBigEndian32(memTopBytes);
+    uint32_t scrnBase = MCBigEndian32(scrnBaseBytes);
+    uint32_t romBase = MCBigEndian32(romBaseBytes);
+    if (memTop < 0x20000 || (memTop & 0xFFF) != 0 || scrnBase == 0 || scrnBase >= memTop || romBase < memTop)
+        return;  // not started yet; try again next frame
+
+    // OpenEmu's points are in the aspect-corrected view; the Mac's screen is
+    // the emulated screen (512 x 342 on the compact Macs).
+    int width = _screenRect.size.width, height = _screenRect.size.height;
+    if (width <= 0 || height <= 0)
+        return;
+    long h = lround((double)point.x * width  / _aspectSize.width);
+    long v = lround((double)point.y * height / _aspectSize.height);
+    h = MAX(0, MIN(width - 1, h));
+    v = MAX(0, MIN(height - 1, v));
+
+    uint8_t where[12] = {
+        (uint8_t)(v >> 8), (uint8_t)v, (uint8_t)(h >> 8), (uint8_t)h,   // MTemp
+        (uint8_t)(v >> 8), (uint8_t)v, (uint8_t)(h >> 8), (uint8_t)h,   // RawMouse
+        (uint8_t)(v >> 8), (uint8_t)v, (uint8_t)(h >> 8), (uint8_t)h,   // Mouse
+    };
+    uint8_t couple = 0;
+    if (![_osd writeProgramMemory:where address:0x828 length:sizeof(where)] ||
+        ![_osd readProgramMemory:&couple address:0x8CF length:1] ||
+        ![_osd writeProgramMemory:&couple address:0x8CE length:1])
+        return;
+
+    os_unfair_lock_lock(&_mouseLock);
+    if (_mouseLast.x == point.x && _mouseLast.y == point.y)
+        _pointerMoved = NO;   // else it moved again meanwhile: place it next frame
     os_unfair_lock_unlock(&_mouseLock);
 }
 

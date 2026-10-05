@@ -272,7 +272,7 @@ index 5af8db96..65933a44 100644
  
  INPUT_PORTS_START( apple2gsrom3 )
 diff --git a/src/osd/headless/headless.mm b/src/osd/headless/headless.mm
-index 532701be..e1fe9b32 100644
+index 532701be..53f10ce2 100644
 --- a/src/osd/headless/headless.mm
 +++ b/src/osd/headless/headless.mm
 @@ -50,6 +50,11 @@ OE_ENUM_CHECK(media_auditor::media_type, SAMPLE, AuditMediaTypeSample);
@@ -472,7 +472,7 @@ index 532701be..e1fe9b32 100644
  	return YES;
  }
  
-@@ -658,6 +775,106 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
+@@ -658,6 +775,133 @@ static_assert(InputItemID::InputItemID_ABSOLUTE_MAXIMUM == input_item_id::ITEM_I
  	[self _initializeGame:nil];
  }
  
@@ -562,6 +562,33 @@ index 532701be..e1fe9b32 100644
 +	headless_ui_show_menu(*_machine);
 +}
 +
++- (BOOL)readProgramMemory:(void *)buffer address:(uint32_t)address length:(NSUInteger)length
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING || buffer == nullptr)
++		return NO;
++	address_space *space = [self _programSpace];
++	if (space == nullptr)
++		return NO;
++	auto const disabler = _machine->disable_side_effects();
++	uint8_t *out = static_cast<uint8_t *>(buffer);
++	for (NSUInteger i = 0; i < length; i++)
++		out[i] = space->read_byte(offs_t(address + i));
++	return YES;
++}
++
++- (BOOL)writeProgramMemory:(void const *)buffer address:(uint32_t)address length:(NSUInteger)length
++{
++	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING || buffer == nullptr)
++		return NO;
++	address_space *space = [self _programSpace];
++	if (space == nullptr)
++		return NO;
++	uint8_t const *in = static_cast<uint8_t const *>(buffer);
++	for (NSUInteger i = 0; i < length; i++)
++		space->write_byte(offs_t(address + i), in[i]);
++	return YES;
++}
++
 +- (BOOL)showScreenWithTag:(NSString *)tag
 +{
 +	if (_machine == nullptr || _machine->phase() != machine_phase::RUNNING)
@@ -579,7 +606,7 @@ index 532701be..e1fe9b32 100644
  + (OSD *)shared
  {
  	static OSD *shared;
-@@ -820,18 +1037,32 @@ void headless_osd_interface::update_dimensions()
+@@ -820,18 +1064,32 @@ void headless_osd_interface::update_dimensions()
  	s32 temp_width, temp_height;
  	m_target->compute_minimum_size(temp_width, temp_height);
  	osd_dim new_size(temp_width, temp_height);
@@ -616,7 +643,7 @@ index 532701be..e1fe9b32 100644
  
  #if 0
  	{
-@@ -865,12 +1096,11 @@ void headless_osd_interface::update_dimensions()
+@@ -865,12 +1123,11 @@ void headless_osd_interface::update_dimensions()
  	}
  #endif
  
@@ -630,7 +657,7 @@ index 532701be..e1fe9b32 100644
  	{
  		// for multiple screens or those with artwork, use the full dimensions
  		aspect = std::pair<unsigned, unsigned>(new_size.width(), new_size.height());
-@@ -901,6 +1131,45 @@ void headless_osd_interface::update_dimensions()
+@@ -901,6 +1158,45 @@ void headless_osd_interface::update_dimensions()
  			aspect.first, aspect.second)];
  }
  
@@ -676,7 +703,7 @@ index 532701be..e1fe9b32 100644
  void headless_osd_interface::update(bool skip_redraw)
  {
  	// check if the games video mode has changed
-@@ -993,6 +1262,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
+@@ -993,6 +1289,22 @@ void headless_osd_interface::customize_input_type_list(std::vector<input_type_en
  //				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_ESC, input_seq::or_code, JOYCODE_SELECT, JOYCODE_START);
  //				break;
  
@@ -699,7 +726,7 @@ index 532701be..e1fe9b32 100644
  			// leave everything else alone
  			default:
  				break;
-@@ -1176,6 +1461,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
+@@ -1176,6 +1488,58 @@ void headless_osd_interface::output_callback(osd_output_channel channel,
  	return _options;
  }
  
@@ -759,7 +786,7 @@ index 532701be..e1fe9b32 100644
  
  #define PATH_PROPERTY(OPT, SET, GET) \
 diff --git a/src/osd/headless/public/headless.h b/src/osd/headless/public/headless.h
-index a8ef9ff6..3181e294 100644
+index a8ef9ff6..140eb237 100644
 --- a/src/osd/headless/public/headless.h
 +++ b/src/osd/headless/public/headless.h
 @@ -16,6 +16,8 @@ typedef NS_ERROR_ENUM(MAMEErrorDomain, MAMEError)
@@ -789,7 +816,7 @@ index a8ef9ff6..3181e294 100644
  #pragma mark - execution
  
  - (BOOL)execute;
-@@ -121,6 +134,44 @@ OE_EXPORTED_CLASS
+@@ -121,6 +134,53 @@ OE_EXPORTED_CLASS
  - (void)scheduleHardReset;
  - (void)setBuffer:(void *)buffer size:(NSSize)size;
  
@@ -830,6 +857,15 @@ index a8ef9ff6..3181e294 100644
 + *  Returns NO if there is no such screen or no view that shows it alone.
 + *  Emulation thread only. */
 +- (BOOL)showScreenWithTag:(NSString *)tag;
++
++/// Reads `length` bytes of the main CPU's program address space, starting at
++/// `address`, as the CPU sees them (device side effects suppressed). Only
++/// while the machine is running; call between frames. Returns NO otherwise.
++- (BOOL)readProgramMemory:(void *)buffer address:(uint32_t)address length:(NSUInteger)length;
++
++/// Writes `length` bytes into the main CPU's program address space at
++/// `address`. Same rules as readProgramMemory:address:length:.
++- (BOOL)writeProgramMemory:(void const *)buffer address:(uint32_t)address length:(NSUInteger)length;
 +
  @end
  
